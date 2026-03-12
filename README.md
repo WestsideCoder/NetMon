@@ -1,6 +1,4 @@
-# 🚀 Network Monitor V2 - Professional Edition
-
-**Enterprise-grade network monitoring system with automatic SNMP discovery, real-time alerts, and beautiful visualizations.**
+# NetMon (Beta) v0.9
 
 ---
 
