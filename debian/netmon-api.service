@@ -1,0 +1,17 @@
+[Unit]
+Description=NetMon API Server
+After=network.target postgresql.service redis-server.service
+Requires=postgresql.service redis-server.service
+
+[Service]
+Type=simple
+User=netmon
+Group=netmon
+WorkingDirectory=/usr/share/netmon/backend
+EnvironmentFile=/etc/netmon/config.env
+ExecStart=/usr/share/netmon/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 4
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

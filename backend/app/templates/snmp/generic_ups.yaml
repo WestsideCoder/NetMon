@@ -1,0 +1,30 @@
+name: Generic UPS
+device_type: ups
+description: RFC 1628 UPS MIB compliant devices
+sys_object_id_pattern: ""
+sys_descr_pattern: "ups"
+oids:
+  "1.3.6.1.2.1.33.1.2.5.0":
+    name: upsEstimatedChargeRemaining
+    type: gauge
+  "1.3.6.1.2.1.33.1.2.3.0":
+    name: upsEstimatedMinutesRemaining
+    type: gauge
+  "1.3.6.1.2.1.33.1.3.3.1.3.1":
+    name: upsInputVoltage
+    type: gauge
+  "1.3.6.1.2.1.33.1.4.4.1.2.1":
+    name: upsOutputVoltage
+    type: gauge
+  "1.3.6.1.2.1.33.1.4.4.1.5.1":
+    name: upsOutputPercentLoad
+    type: gauge
+  "1.3.6.1.2.1.33.1.2.7.0":
+    name: upsBatteryTemperature
+    type: gauge
+  "1.3.6.1.2.1.33.1.2.1.0":
+    name: upsBatteryStatus
+    type: gauge
+  "1.3.6.1.2.1.33.1.4.1.0":
+    name: upsOutputSource
+    type: gauge

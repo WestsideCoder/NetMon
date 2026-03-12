@@ -1,0 +1,5 @@
+#!/bin/bash
+set -e
+
+systemctl stop netmon-api netmon-worker netmon-beat netmon-trap 2>/dev/null || true
+systemctl disable netmon-api netmon-worker netmon-beat netmon-trap 2>/dev/null || true

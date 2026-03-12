@@ -1,0 +1,22 @@
+#!/bin/bash
+set -e
+
+# Create netmon user if not exists
+id -u netmon &>/dev/null || useradd -r -m -s /bin/bash netmon
+
+# Create Python venv
+if [ ! -d /usr/share/netmon/venv ]; then
+    python3 -m venv /usr/share/netmon/venv
+    /usr/share/netmon/venv/bin/pip install --no-cache-dir -U pip
+fi
+
+# Set permissions
+chown -R netmon:netmon /usr/share/netmon /var/lib/netmon /var/log/netmon
+chmod 600 /etc/netmon/config.env
+
+# Enable services
+systemctl daemon-reload
+systemctl enable netmon-api netmon-worker netmon-beat
+systemctl start netmon-api netmon-worker netmon-beat
+
+echo "NetMon v2 installed. Edit /etc/netmon/config.env then restart services."

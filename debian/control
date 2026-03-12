@@ -1,0 +1,23 @@
+Source: netmon
+Section: net
+Priority: optional
+Maintainer: NetMon Team <netmon@example.com>
+Build-Depends: debhelper (>= 13), python3, python3-venv, python3-pip
+Standards-Version: 4.6.0
+Homepage: https://github.com/netmon/netmon-v2
+
+Package: netmon
+Architecture: all
+Depends: python3 (>= 3.11),
+         postgresql (>= 15),
+         redis-server,
+         nginx,
+         fping,
+         snmp,
+         openssl,
+         ${misc:Depends}
+Description: Enterprise Network Monitoring System
+ NetMon v2 is a production-ready network monitoring system supporting
+ SNMP v1/v2c/v3, ICMP ping, HTTP/HTTPS checks, syslog collection,
+ and SNMP trap reception. Features include threshold-based alerting,
+ LDAP authentication, and a React-based web interface.

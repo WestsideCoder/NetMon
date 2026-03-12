@@ -1,0 +1,14 @@
+name: Windows Server
+device_type: server
+description: Windows hosts with Host Resources MIB (CPU, memory, disk via SNMP walk)
+sys_object_id_pattern: "1.3.6.1.4.1.311"
+sys_descr_pattern: "Windows"
+oids:
+  "1.3.6.1.2.1.1.3.0":
+    name: sysUpTime
+    type: timeticks
+  "1.3.6.1.2.1.25.1.6.0":
+    name: hrSystemProcesses
+    type: gauge
+alert_rules:
+  host_resources: true

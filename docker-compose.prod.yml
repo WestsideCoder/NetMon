@@ -1,0 +1,47 @@
+version: '3.8'
+
+# Production overrides - use with: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+services:
+  backend:
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
+    ports: []  # Override: remove direct backend exposure; access only via nginx
+    volumes:
+      - backend_uploads:/app/uploads
+      - ssl_store:/app/ssl_store
+      - nginx_ssl:/etc/nginx/ssl
+    environment:
+      - ENVIRONMENT=production
+      - DEBUG=false
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+
+  celery-worker:
+    command: celery -A app.tasks worker --loglevel=warning --concurrency=8
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+
+  celery-beat:
+    command: celery -A app.tasks beat --loglevel=warning
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+  db:
+    ports: []  # Override: do not expose PostgreSQL directly
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+
+  redis:
+    ports: []  # Override: do not expose Redis directly

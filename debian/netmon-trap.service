@@ -1,0 +1,16 @@
+[Unit]
+Description=NetMon SNMP Trap Receiver
+After=network.target postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/usr/share/netmon/backend
+EnvironmentFile=/etc/netmon/config.env
+ExecStart=/usr/share/netmon/venv/bin/python -c "from app.services.trap_receiver import start_trap_receiver; start_trap_receiver()"
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,17 @@
+[Unit]
+Description=NetMon Celery Beat Scheduler
+After=network.target redis-server.service
+Requires=redis-server.service
+
+[Service]
+Type=simple
+User=netmon
+Group=netmon
+WorkingDirectory=/usr/share/netmon/backend
+EnvironmentFile=/etc/netmon/config.env
+ExecStart=/usr/share/netmon/venv/bin/celery -A app.tasks beat --loglevel=info
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

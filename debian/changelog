@@ -1,0 +1,9 @@
+netmon (2.0.0-1) unstable; urgency=medium
+
+  * Initial release of NetMon v2
+  * Complete rewrite with FastAPI backend
+  * React + TypeScript frontend
+  * SNMP, ICMP, HTTP monitoring
+  * LDAP authentication support
+
+ -- NetMon Team <netmon@example.com>  Thu, 27 Feb 2026 00:00:00 +0000

@@ -1,0 +1,30 @@
+#!/usr/bin/make -f
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	python3 -m venv debian/venv
+	debian/venv/bin/pip install --no-cache-dir -r backend/requirements.txt || true
+	cd frontend && npm ci && npm run build || true
+
+override_dh_auto_install:
+	# Backend
+	install -d $(CURDIR)/debian/netmon/usr/share/netmon/backend
+	cp -r backend/app $(CURDIR)/debian/netmon/usr/share/netmon/backend/
+	cp backend/pyproject.toml $(CURDIR)/debian/netmon/usr/share/netmon/backend/
+	# Frontend
+	install -d $(CURDIR)/debian/netmon/usr/share/netmon/frontend
+	cp -r frontend/dist/* $(CURDIR)/debian/netmon/usr/share/netmon/frontend/ 2>/dev/null || true
+	# Config
+	install -d $(CURDIR)/debian/netmon/etc/netmon
+	cp .env.example $(CURDIR)/debian/netmon/etc/netmon/config.env
+	# SNMP templates
+	install -d $(CURDIR)/debian/netmon/etc/netmon/snmp_templates
+	cp -r backend/app/templates/snmp/*.yaml $(CURDIR)/debian/netmon/etc/netmon/snmp_templates/
+	# Nginx config
+	install -d $(CURDIR)/debian/netmon/etc/netmon
+	cp nginx/nginx.conf $(CURDIR)/debian/netmon/etc/netmon/nginx.conf
+	# Directories
+	install -d $(CURDIR)/debian/netmon/var/lib/netmon
+	install -d $(CURDIR)/debian/netmon/var/log/netmon

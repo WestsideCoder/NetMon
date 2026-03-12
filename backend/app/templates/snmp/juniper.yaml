@@ -1,0 +1,49 @@
+name: Juniper Networks
+device_type: switch
+description: Juniper Networks switches and routers (EX, QFX, SRX, MX series)
+sys_object_id_pattern: "1.3.6.1.4.1.2636"
+sys_descr_pattern: "Juniper"
+oids:
+  "1.3.6.1.2.1.1.3.0":
+    name: sysUpTime
+    type: timeticks
+  "1.3.6.1.2.1.1.5.0":
+    name: sysName
+    type: string
+  "1.3.6.1.2.1.1.1.0":
+    name: sysDescr
+    type: string
+  # LLDP local system name (often has the real hostname when sysName doesn't)
+  "1.0.8802.1.1.2.1.3.3.0":
+    name: lldpLocSysName
+    type: string
+  # Chassis serial number
+  "1.3.6.1.4.1.2636.3.1.3.0":
+    name: jnxBoxSerialNo
+    type: string
+  # Juniper CPU utilization (jnxOperatingCPU - last 5 min average for routing engine)
+  "1.3.6.1.4.1.2636.3.1.13.1.8.9.1.0.0":
+    name: jnxCpuUtil5min
+    type: gauge
+  # Juniper memory utilization (jnxOperatingBuffer - routing engine)
+  "1.3.6.1.4.1.2636.3.1.13.1.11.9.1.0.0":
+    name: jnxMemoryUtil
+    type: gauge
+  # Juniper temperature (jnxOperatingTemp - routing engine)
+  "1.3.6.1.4.1.2636.3.1.13.1.7.9.1.0.0":
+    name: jnxTemperature
+    type: gauge
+  # Interface count
+  "1.3.6.1.2.1.2.1.0":
+    name: ifNumber
+    type: gauge
+  # Juniper alarm count (yellow)
+  "1.3.6.1.4.1.2636.3.4.2.2.1.0":
+    name: jnxYellowAlarmCount
+    type: gauge
+  # Juniper alarm count (red)
+  "1.3.6.1.4.1.2636.3.4.2.3.1.0":
+    name: jnxRedAlarmCount
+    type: gauge
+alert_rules:
+  host_resources: false
