@@ -15,6 +15,8 @@ RUN sed -i 's/Components: main/Components: main non-free non-free-firmware/' /et
     fping \
     snmp \
     snmp-mibs-downloader \
+    krb5-user \
+    libkrb5-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Poetry
@@ -29,6 +31,9 @@ COPY pyproject.toml poetry.lock* ./
 # Install dependencies
 RUN poetry config virtualenvs.create false \
     && poetry install --no-interaction --no-ansi
+
+# Kerberos configuration
+COPY krb5.conf /etc/krb5.conf
 
 # Copy application code
 COPY . .

@@ -105,8 +105,8 @@
 
 1. **Clone the repository**
 ```bash
-git clone <repository-url>
-cd netmon-v2
+git clone https://github.com/WestsideCoder/NetMon.git
+cd NetMon
 ```
 
 2. **Configure environment**

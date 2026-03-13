@@ -75,10 +75,11 @@ interface SmtpSettings {
 
 interface DhcpSettings {
   dhcp_enabled: boolean;
-  dhcp_server: string;
+  dhcp_servers: string;
   dhcp_username: string;
   dhcp_password: string;
   dhcp_use_ssl: boolean;
+  dhcp_auth: string;
   dhcp_sync_interval: number;
 }
 
@@ -629,11 +630,12 @@ export default function Settings() {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">DHCP Server</label>
-                      <input type="text" className={inputClass} value={dhcp.dhcp_server}
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">DHCP Servers</label>
+                      <input type="text" className={inputClass} value={dhcp.dhcp_servers}
                         disabled={!isAdmin}
-                        placeholder="e.g. 10.44.1.10 or dhcp-server.domain.com"
-                        onChange={(e) => setDhcp({ ...dhcp, dhcp_server: e.target.value })} />
+                        placeholder="e.g. 10.44.1.10, 10.44.2.10, 10.44.3.10"
+                        onChange={(e) => setDhcp({ ...dhcp, dhcp_servers: e.target.value })} />
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Comma-separated list of DHCP server IPs or hostnames.</p>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Sync Interval (seconds)</label>
@@ -670,6 +672,19 @@ export default function Settings() {
                       <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Use SSL (port 5986)</span>
                     </label>
                     <p className="text-xs text-gray-500 dark:text-gray-400">Uncheck for HTTP (port 5985). SSL is recommended.</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Authentication Method</label>
+                    <select className={inputClass} value={dhcp.dhcp_auth}
+                      disabled={!isAdmin}
+                      onChange={(e) => setDhcp({ ...dhcp, dhcp_auth: e.target.value })}>
+                      <option value="ntlm">NTLM</option>
+                      <option value="negotiate">Negotiate (Kerberos/NTLM)</option>
+                      <option value="kerberos">Kerberos</option>
+                      <option value="credssp">CredSSP</option>
+                    </select>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">NTLM works best for domain accounts connecting from Linux. Use Negotiate if Kerberos is configured.</p>
                   </div>
 
                   <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3 text-xs text-gray-600 dark:text-gray-400">

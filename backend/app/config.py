@@ -80,10 +80,11 @@ class Settings(BaseSettings):
 
     # DHCP sync (Windows DHCP Server via PowerShell remoting)
     DHCP_ENABLED: bool = False
-    DHCP_SERVER: str = ""
+    DHCP_SERVERS: str = ""  # comma-separated list of DHCP server IPs/hostnames
     DHCP_USERNAME: str = ""
     DHCP_PASSWORD: str = ""
     DHCP_USE_SSL: bool = True
+    DHCP_AUTH: str = "negotiate"  # negotiate, ntlm, kerberos, credssp
     DHCP_SYNC_INTERVAL: int = 3600  # seconds (default 1 hour)
 
     # Syslog / SNMP Trap

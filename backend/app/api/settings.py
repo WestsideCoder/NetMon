@@ -208,10 +208,11 @@ async def test_email(
 
 class DhcpSettings(BaseModel):
     dhcp_enabled: bool
-    dhcp_server: str
+    dhcp_servers: str  # comma-separated list of DHCP server IPs/hostnames
     dhcp_username: str
     dhcp_password: Optional[str] = None  # write-only; GET returns masked
     dhcp_use_ssl: bool
+    dhcp_auth: str = "negotiate"
     dhcp_sync_interval: int
 
 
@@ -228,10 +229,11 @@ async def get_dhcp_settings(
 ):
     return DhcpSettings(
         dhcp_enabled=settings.DHCP_ENABLED,
-        dhcp_server=settings.DHCP_SERVER,
+        dhcp_servers=settings.DHCP_SERVERS,
         dhcp_username=settings.DHCP_USERNAME,
         dhcp_password="****" if settings.DHCP_PASSWORD else "",
         dhcp_use_ssl=settings.DHCP_USE_SSL,
+        dhcp_auth=settings.DHCP_AUTH,
         dhcp_sync_interval=settings.DHCP_SYNC_INTERVAL,
     )
 
@@ -242,7 +244,7 @@ async def update_dhcp_settings(
     _user: User = Depends(require_role(UserRole.ADMIN)),
 ):
     settings.DHCP_ENABLED = data.dhcp_enabled
-    settings.DHCP_SERVER = data.dhcp_server
+    settings.DHCP_SERVERS = data.dhcp_servers
     settings.DHCP_USERNAME = data.dhcp_username
     if data.dhcp_password == "****":
         pass  # keep existing
@@ -253,24 +255,27 @@ async def update_dhcp_settings(
     if not data.dhcp_username:
         settings.DHCP_PASSWORD = ""
     settings.DHCP_USE_SSL = data.dhcp_use_ssl
+    settings.DHCP_AUTH = data.dhcp_auth
     settings.DHCP_SYNC_INTERVAL = data.dhcp_sync_interval
 
     env_path = "/app/.env"
     _update_env(env_path, {
         "DHCP_ENABLED": str(data.dhcp_enabled).lower(),
-        "DHCP_SERVER": data.dhcp_server,
+        "DHCP_SERVERS": data.dhcp_servers,
         "DHCP_USERNAME": data.dhcp_username,
         "DHCP_PASSWORD": settings.DHCP_PASSWORD,
         "DHCP_USE_SSL": str(data.dhcp_use_ssl).lower(),
+        "DHCP_AUTH": data.dhcp_auth,
         "DHCP_SYNC_INTERVAL": str(data.dhcp_sync_interval),
     })
 
     return DhcpSettings(
         dhcp_enabled=settings.DHCP_ENABLED,
-        dhcp_server=settings.DHCP_SERVER,
+        dhcp_servers=settings.DHCP_SERVERS,
         dhcp_username=settings.DHCP_USERNAME,
         dhcp_password="****" if settings.DHCP_PASSWORD else "",
         dhcp_use_ssl=settings.DHCP_USE_SSL,
+        dhcp_auth=settings.DHCP_AUTH,
         dhcp_sync_interval=settings.DHCP_SYNC_INTERVAL,
     )
 
@@ -284,7 +289,7 @@ async def trigger_dhcp_sync(
         return DhcpSyncResponse(
             success=False, message="DHCP sync is not enabled"
         )
-    if not settings.DHCP_SERVER or not settings.DHCP_USERNAME:
+    if not settings.DHCP_SERVERS or not settings.DHCP_USERNAME:
         return DhcpSyncResponse(
             success=False, message="DHCP server not fully configured"
         )

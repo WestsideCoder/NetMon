@@ -995,6 +995,17 @@ test = ["certifi (>=2024)", "cryptography-vectors (==46.0.5)", "pretend (>=0.7)"
 test-randomorder = ["pytest-randomly"]
 
 [[package]]
+name = "decorator"
+version = "5.2.1"
+description = "Decorators for Humans"
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "decorator-5.2.1-py3-none-any.whl", hash = "sha256:d316bb415a2d9e2d2b3abcc4084c6502fc09240e292cd76a76afc106a1c8e04a"},
+    {file = "decorator-5.2.1.tar.gz", hash = "sha256:65f266143752f734b0a7cc83c46f4618af75b8c5911b00ccb61d0ac9b6da0360"},
+]
+
+[[package]]
 name = "dnspython"
 version = "2.8.0"
 description = "DNS toolkit"
@@ -1252,6 +1263,35 @@ files = [
 [package.extras]
 docs = ["Sphinx", "furo"]
 test = ["objgraph", "psutil", "setuptools"]
+
+[[package]]
+name = "gssapi"
+version = "1.11.1"
+description = "Python GSSAPI Wrapper"
+optional = false
+python-versions = ">=3.9"
+files = [
+    {file = "gssapi-1.11.1-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:126352502e15dc42f786a4635e5fb4dc8ae4bbc89354e85ab094c478a9e49beb"},
+    {file = "gssapi-1.11.1-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:25b3bcf75a0dd5638f02f939a9c40d1c907682ccca69ea1d05ea81ad58ea1022"},
+    {file = "gssapi-1.11.1-cp310-cp310-win32.whl", hash = "sha256:e5d01ac02df8fe67c32cd1684c0954e935d50158ebb956fdffbf9aad7695a3b3"},
+    {file = "gssapi-1.11.1-cp310-cp310-win_amd64.whl", hash = "sha256:0e8b4d76801f2a8f8e6d85746cb9048d47341c6706800b357c61ba09e4741c03"},
+    {file = "gssapi-1.11.1-cp311-abi3-macosx_10_9_x86_64.whl", hash = "sha256:2298e5909a8f2d27c29352885a24e4026cfd3fa24fc38d4a0a3743fa5a3e7667"},
+    {file = "gssapi-1.11.1-cp311-abi3-macosx_11_0_arm64.whl", hash = "sha256:5b60b1f8d8d3e36c025bd3494105de1dfccee578e8de001f423cc094468e3022"},
+    {file = "gssapi-1.11.1-cp311-abi3-win32.whl", hash = "sha256:9738fe0ba163c28ccf521de7520640bde4b135c1b6e87a5ac5a90435369e89c0"},
+    {file = "gssapi-1.11.1-cp311-abi3-win_amd64.whl", hash = "sha256:96a102ad1ec266e2d843468bf03149982969fc70344f303f81ea20197b80d7a1"},
+    {file = "gssapi-1.11.1-cp314-cp314t-macosx_10_15_x86_64.whl", hash = "sha256:82fba401e9514ad21749b8d8954e2de1c617b0a73204c8598ee84630e23c5810"},
+    {file = "gssapi-1.11.1-cp314-cp314t-macosx_11_0_arm64.whl", hash = "sha256:cb0250f27d288d4217d7f606d3b68ecb9a10fce9391106129cada96434a685b0"},
+    {file = "gssapi-1.11.1-cp314-cp314t-win32.whl", hash = "sha256:b17875d236b8b030a777ee3f3ece55f3d316a91937c37abbc771afe1493703cf"},
+    {file = "gssapi-1.11.1-cp314-cp314t-win_amd64.whl", hash = "sha256:da43c0e0ae84bb9f04c4e016eac6d3826c6357f827183042ba990ccedeeab052"},
+    {file = "gssapi-1.11.1-cp39-cp39-macosx_10_9_x86_64.whl", hash = "sha256:2982ca375bba548f7b2f6013ff55343f1a9f356b7e78426347ebe2b61f824b75"},
+    {file = "gssapi-1.11.1-cp39-cp39-macosx_11_0_arm64.whl", hash = "sha256:8bbefb4d0356803fab14623c075c63e038470228e6f572e07240b5ab9b4a6ff2"},
+    {file = "gssapi-1.11.1-cp39-cp39-win32.whl", hash = "sha256:ca58947db846d1454dc9a48e1610f51521955b749497363d8b2e31482a0669da"},
+    {file = "gssapi-1.11.1-cp39-cp39-win_amd64.whl", hash = "sha256:4aa2a483eb7fe5dbee1313a262b18f336c4c2034b0a9ccc0e5bec1cc711ddb7f"},
+    {file = "gssapi-1.11.1.tar.gz", hash = "sha256:2049ee4b1d0c363163a1344b7282a363f9f4094e51d2c36de0cf01d4735e0ae2"},
+]
+
+[package.dependencies]
+decorator = "*"
 
 [[package]]
 name = "h11"
@@ -3482,4 +3522,4 @@ propcache = ">=0.2.1"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "b178c3cc20a1238a0a841a9d2b35580b49bdf37a18b6b3f0280be7e94bb3e1f7"
+content-hash = "5bc7ed7cc234286c41c9140aa10a9a6c5672942ba80ebb86a57b90c63ec8766b"
