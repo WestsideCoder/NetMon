@@ -63,8 +63,16 @@ export default function UserForm({ user, onSuccess, onCancel }: Props) {
       }
       onSuccess();
     } catch (e: unknown) {
-      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      setError(msg || 'Failed to save user');
+      const detail = (e as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
+      let msg: string;
+      if (typeof detail === 'string') {
+        msg = detail;
+      } else if (Array.isArray(detail)) {
+        msg = detail.map((d: { msg?: string }) => d.msg || '').filter(Boolean).join(', ');
+      } else {
+        msg = 'Failed to save user';
+      }
+      setError(msg);
     } finally {
       setSaving(false);
     }

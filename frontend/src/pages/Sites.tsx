@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { useState, useEffect, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import SiteTreeView from '../components/Sites/SiteTree';
 import SiteForm from '../components/Sites/SiteForm';
@@ -12,10 +13,14 @@ import type { Site } from '../types';
 
 export default function Sites() {
   const { canEdit } = useRole();
+  const location = useLocation();
   const [showForm, setShowForm] = useState(false);
   const [editSite, setEditSite] = useState<Site | null>(null);
   const [addChildParentId, setAddChildParentId] = useState<number | null>(null);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(() => {
+    const navState = location.state as { selectSiteId?: number } | null;
+    return navState?.selectSiteId ?? null;
+  });
   const [selectedSite, setSelectedSite] = useState<Site | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Site | null>(null);
   const [treeKey, setTreeKey] = useState(0);

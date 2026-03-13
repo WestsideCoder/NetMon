@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { useState, useEffect, useCallback } from 'react';
-import { Pencil, Trash2, FolderPlus, Image, MapPin, ChevronDown, ChevronUp, ImageOff, Plus } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Pencil, Trash2, FolderPlus, Image, MapPin, ChevronDown, ChevronUp, ImageOff, Plus, Radar, Map, List } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import api from '../../api/client';
-import type { Site, SiteChildWithStats } from '../../types';
+import type { Site, Device, SiteChildWithStats } from '../../types';
 import { formatDate } from '../../utils/date';
 import { useRole } from '../../hooks/useRole';
 import SiteBreadcrumb from './SiteBreadcrumb';
@@ -20,12 +22,22 @@ interface Props {
 }
 
 export default function SiteMapPanel({ site, onEdit, onDelete, onAddChild, onReload }: Props) {
+  const navigate = useNavigate();
   const [navStack, setNavStack] = useState<Site[]>([site]);
   const [children, setChildren] = useState<SiteChildWithStats[]>([]);
   const [childrenLoading, setChildrenLoading] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
   const [showAddDevice, setShowAddDevice] = useState(false);
+  const [viewMode, setViewModeState] = useState<'map' | 'list'>(() => {
+    return (localStorage.getItem('site-view-mode') as 'map' | 'list') || 'map';
+  });
+  const setViewMode = (mode: 'map' | 'list') => {
+    setViewModeState(mode);
+    localStorage.setItem('site-view-mode', mode);
+  };
+  const [listDevices, setListDevices] = useState<Device[]>([]);
+  const [listLoading, setListLoading] = useState(false);
   const { canEdit, isAdmin } = useRole();
 
   const currentSite = navStack[navStack.length - 1];
@@ -61,6 +73,20 @@ export default function SiteMapPanel({ site, onEdit, onDelete, onAddChild, onRel
   useEffect(() => {
     fetchChildren();
   }, [fetchChildren]);
+
+  // Fetch devices for list view
+  const fetchListDevices = useCallback(async () => {
+    setListLoading(true);
+    try {
+      const res = await api.get('/api/devices/', { params: { site_id: currentSite.id, per_page: 200 } });
+      setListDevices(res.data.items);
+    } catch { setListDevices([]); }
+    setListLoading(false);
+  }, [currentSite.id]);
+
+  useEffect(() => {
+    if (viewMode === 'list') fetchListDevices();
+  }, [viewMode, fetchListDevices]);
 
   const handleDrillDown = async (child: SiteChildWithStats) => {
     // Fetch full site details for the child and push onto internal nav stack
@@ -130,6 +156,9 @@ export default function SiteMapPanel({ site, onEdit, onDelete, onAddChild, onRel
                 <button onClick={() => setShowAddDevice(true)} className="flex items-center gap-1 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700" title="Add device to this site">
                   <Plus className="h-4 w-4" /> Add Device
                 </button>
+                <button onClick={() => navigate(`/discovery?site_id=${currentSite.id}`)} className="flex items-center gap-1 px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700" title="Scan for devices">
+                  <Radar className="h-4 w-4" /> Scan
+                </button>
                 {currentSite.level < 4 && (
                   <button onClick={onAddChild} className="flex items-center gap-1 px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700" title="Add child site">
                     <FolderPlus className="h-4 w-4" />
@@ -145,6 +174,14 @@ export default function SiteMapPanel({ site, onEdit, onDelete, onAddChild, onRel
                 <Trash2 className="h-4 w-4" />
               </button>
             )}
+            <div className="flex border rounded-lg dark:border-gray-600 overflow-hidden">
+              <button onClick={() => setViewMode('map')} className={`p-1.5 ${viewMode === 'map' ? 'bg-blue-600 text-white' : 'hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-gray-300'}`} title="Map view">
+                <Map className="h-4 w-4" />
+              </button>
+              <button onClick={() => setViewMode('list')} className={`p-1.5 ${viewMode === 'list' ? 'bg-blue-600 text-white' : 'hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-gray-300'}`} title="List view">
+                <List className="h-4 w-4" />
+              </button>
+            </div>
             <button onClick={() => setDetailOpen(!detailOpen)} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded">
               {detailOpen ? <ChevronUp className="h-4 w-4 text-gray-400" /> : <ChevronDown className="h-4 w-4 text-gray-400" />}
             </button>
@@ -186,22 +223,123 @@ export default function SiteMapPanel({ site, onEdit, onDelete, onAddChild, onRel
         )}
       </div>
 
-      {/* Content: floor plan viewer for sites with map images, child grid for non-floor levels */}
-      {(isFloorLevel || hasMapImage) && (
-        <FloorPlanViewer
-          site={currentSite}
-          children={!isFloorLevel ? children : undefined}
-          onUploadImage={() => setShowUpload(true)}
-          onReload={() => { onReload(); fetchChildren(); }}
-          onDrillDown={handleDrillDown}
-        />
-      )}
-      {!isFloorLevel && (
-        <SiteChildGrid
-          children={children}
-          onSelect={handleDrillDown}
-          loading={childrenLoading}
-        />
+      {/* Content: map view or list view */}
+      {viewMode === 'map' ? (
+        <>
+          {(isFloorLevel || hasMapImage) && (
+            <FloorPlanViewer
+              site={currentSite}
+              children={!isFloorLevel ? children : undefined}
+              onUploadImage={() => setShowUpload(true)}
+              onReload={() => { onReload(); fetchChildren(); }}
+              onDrillDown={handleDrillDown}
+            />
+          )}
+          {!isFloorLevel && (
+            <SiteChildGrid
+              children={children}
+              onSelect={handleDrillDown}
+              loading={childrenLoading}
+            />
+          )}
+        </>
+      ) : (
+        <div className="space-y-4">
+          {/* Sub-sites */}
+          {!isFloorLevel && children.length > 0 && (
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+              <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700 border-b dark:border-gray-600">
+                <h4 className="text-sm font-medium text-gray-600 dark:text-gray-300">Sub-sites ({children.length})</h4>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50/50 dark:bg-gray-700/50 text-left">
+                    <tr>
+                      <th className="px-4 py-2 font-medium text-gray-600 dark:text-gray-300">Name</th>
+                      <th className="px-4 py-2 font-medium text-gray-600 dark:text-gray-300">Location</th>
+                      <th className="px-4 py-2 font-medium text-gray-600 dark:text-gray-300">Level</th>
+                      <th className="px-4 py-2 font-medium text-gray-600 dark:text-gray-300">Devices</th>
+                      <th className="px-4 py-2 font-medium text-gray-600 dark:text-gray-300">Online</th>
+                      <th className="px-4 py-2 font-medium text-gray-600 dark:text-gray-300">Offline</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y dark:divide-gray-700">
+                    {children.map((c) => (
+                      <tr key={c.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer" onClick={() => handleDrillDown(c)}>
+                        <td className="px-4 py-3">
+                          <span className={`hover:underline font-medium flex items-center gap-1.5 ${
+                            c.device_stats.offline > 0 ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'
+                          }`}>
+                            <FolderPlus className="h-3.5 w-3.5" />
+                            {c.name}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{c.location || '—'}</td>
+                        <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{c.level}</td>
+                        <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{c.device_stats.total}</td>
+                        <td className="px-4 py-3">
+                          <span className="text-green-600 dark:text-green-400">{c.device_stats.online}</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={c.device_stats.offline > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-gray-300'}>{c.device_stats.offline}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Devices */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+            <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700 border-b dark:border-gray-600">
+              <h4 className="text-sm font-medium text-gray-600 dark:text-gray-300">Devices ({listDevices.length})</h4>
+            </div>
+            {listLoading ? (
+              <div className="p-8 text-center text-gray-500">Loading devices...</div>
+            ) : listDevices.length === 0 ? (
+              <div className="p-8 text-center text-gray-500">No devices in this site</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50/50 dark:bg-gray-700/50 text-left">
+                    <tr>
+                      <th className="px-4 py-2 font-medium text-gray-600 dark:text-gray-300">Status</th>
+                      <th className="px-4 py-2 font-medium text-gray-600 dark:text-gray-300">Name</th>
+                      <th className="px-4 py-2 font-medium text-gray-600 dark:text-gray-300">IP Address</th>
+                      <th className="px-4 py-2 font-medium text-gray-600 dark:text-gray-300">Type</th>
+                      <th className="px-4 py-2 font-medium text-gray-600 dark:text-gray-300">Response</th>
+                      <th className="px-4 py-2 font-medium text-gray-600 dark:text-gray-300">Uptime</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y dark:divide-gray-700">
+                    {listDevices.map((d) => (
+                      <tr key={d.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                        <td className="px-4 py-3">
+                          <span className={`inline-block w-2.5 h-2.5 rounded-full ${
+                            d.status === 'online' ? 'bg-green-500' :
+                            d.status === 'warning' ? 'bg-yellow-500' :
+                            d.status === 'offline' ? 'bg-red-500' : 'bg-gray-400'
+                          }`} title={d.status} />
+                        </td>
+                        <td className="px-4 py-3">
+                          <Link to={`/devices/${d.id}`} className="text-blue-600 dark:text-blue-400 hover:underline font-medium">
+                            {d.name}
+                          </Link>
+                        </td>
+                        <td className="px-4 py-3 text-gray-600 dark:text-gray-300 font-mono">{d.ip_address}</td>
+                        <td className="px-4 py-3 text-gray-600 dark:text-gray-300 capitalize">{d.device_type || '—'}</td>
+                        <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{d.response_time != null ? `${d.response_time}ms` : '—'}</td>
+                        <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{d.uptime_percentage.toFixed(1)}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {/* Upload modal */}

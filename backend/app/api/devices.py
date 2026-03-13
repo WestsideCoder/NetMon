@@ -161,6 +161,13 @@ async def create_device(
     _user: User = Depends(require_role(UserRole.OPERATOR)),
 ):
     device = await device_service.create_device(db, data)
+    # Trigger immediate SNMP poll to pull name/template
+    if device.snmp_enabled and device.snmp_credential_id:
+        try:
+            from app.tasks.snmp_poll import snmp_poll_device
+            snmp_poll_device.delay(device.id)
+        except Exception:
+            pass  # Non-critical — next scheduled poll will catch it
     return _device_to_response(device)
 
 
@@ -186,6 +193,13 @@ async def update_device(
     device = await device_service.update_device(db, device_id, data)
     if not device:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Device not found")
+    # Trigger SNMP poll if SNMP was just enabled or credential changed
+    if device.snmp_enabled and device.snmp_credential_id:
+        try:
+            from app.tasks.snmp_poll import snmp_poll_device
+            snmp_poll_device.delay(device.id)
+        except Exception:
+            pass
     return _device_to_response(device)
 
 

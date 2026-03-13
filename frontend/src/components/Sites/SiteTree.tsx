@@ -28,11 +28,11 @@ function SiteNode({ site, onSelect, selectedId }: NodeProps) {
         {site.map_image_url ? (
           <Image className={`h-4 w-4 ${isSelected ? 'text-blue-500' : 'text-green-500'}`} />
         ) : (
-          <MapPin className={`h-4 w-4 ${isSelected ? 'text-blue-500' : 'text-gray-400'}`} />
+          <MapPin className={`h-4 w-4 ${isSelected ? 'text-blue-500' : site.device_stats?.offline > 0 ? 'text-red-500' : 'text-gray-400'}`} />
         )}
-        <span className="text-sm">{site.name}</span>
+        <span className={`text-sm ${site.device_stats?.offline > 0 ? 'text-red-600 dark:text-red-400 font-medium' : ''}`}>{site.name}</span>
         {site.location && <span className="text-xs text-gray-400 ml-1">({site.location})</span>}
-        <span className="text-xs text-gray-400 ml-auto">{site.device_count}</span>
+        <span className={`text-xs ml-auto ${site.device_stats?.offline > 0 ? 'text-red-500' : 'text-gray-400'}`}>{site.device_count}</span>
       </div>
       {open && site.children.map((c) => (
         <div key={c.id} className="ml-4 border-l dark:border-gray-700 pl-1">

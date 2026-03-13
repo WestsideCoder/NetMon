@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { ZoomIn, ZoomOut, Maximize, Edit3, Save, X, Upload, Image, Building2 } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize, Edit3, Save, X, Upload, Image, Building2, LayoutGrid } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import api from '../../api/client';
 import type { Device, Site, SiteChildWithStats } from '../../types';
@@ -185,6 +185,40 @@ export default function FloorPlanViewer({ site, children: childSites, onUploadIm
     setEditMode(false);
     setEditPositions({});
     setEditSitePositions({});
+  };
+
+  const handlePlaceAll = () => {
+    const items: { type: 'device' | 'site'; id: number }[] = [
+      ...unpositionedChildren.map(c => ({ type: 'site' as const, id: c.id })),
+      ...unpositionedDevices.map(d => ({ type: 'device' as const, id: d.id })),
+    ];
+    if (items.length === 0) return;
+
+    // Calculate grid: leave 5% padding on each side, distribute evenly
+    const padding = 5;
+    const usable = 100 - padding * 2;
+    const cols = Math.ceil(Math.sqrt(items.length));
+    const rows = Math.ceil(items.length / cols);
+    const cellW = usable / cols;
+    const cellH = usable / rows;
+
+    const newDevPos = { ...editPositions };
+    const newSitePos = { ...editSitePositions };
+
+    items.forEach((item, i) => {
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const x = padding + col * cellW + cellW / 2;
+      const y = padding + row * cellH + cellH / 2;
+      if (item.type === 'device') {
+        newDevPos[item.id] = { x, y };
+      } else {
+        newSitePos[item.id] = { x, y };
+      }
+    });
+
+    setEditPositions(newDevPos);
+    setEditSitePositions(newSitePos);
   };
 
   // Merge edit positions with actual device positions
@@ -379,9 +413,18 @@ export default function FloorPlanViewer({ site, children: childSites, onUploadIm
         {/* Unpositioned items sidebar (edit mode only) */}
         {editMode && totalUnpositioned > 0 && (
           <div className="w-48 bg-white dark:bg-gray-800 rounded-lg shadow p-3 shrink-0">
-            <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">
-              Unplaced ({totalUnpositioned})
-            </h4>
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">
+                Unplaced ({totalUnpositioned})
+              </h4>
+              <button
+                onClick={handlePlaceAll}
+                className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-gray-700 rounded"
+                title="Place all items in a grid on the map"
+              >
+                <LayoutGrid className="h-3 w-3" /> Place All
+              </button>
+            </div>
             <div className="space-y-1 max-h-[550px] overflow-y-auto">
               {/* Unpositioned child sites */}
               {unpositionedChildren.map(child => (
@@ -391,8 +434,8 @@ export default function FloorPlanViewer({ site, children: childSites, onUploadIm
                   onDragStart={(e) => e.dataTransfer.setData('site-id', String(child.id))}
                   className="flex items-center gap-2 px-2 py-1.5 rounded text-xs cursor-grab hover:bg-gray-100 dark:hover:bg-gray-700 border dark:border-gray-700"
                 >
-                  <Building2 className="h-3 w-3 text-blue-500 shrink-0" />
-                  <span className="truncate dark:text-gray-300">{child.name}</span>
+                  <Building2 className={`h-3 w-3 shrink-0 ${child.device_stats.offline > 0 ? 'text-red-500' : 'text-blue-500'}`} />
+                  <span className={`truncate ${child.device_stats.offline > 0 ? 'text-red-600 dark:text-red-400 font-medium' : 'dark:text-gray-300'}`}>{child.name}</span>
                 </div>
               ))}
               {/* Unpositioned devices */}

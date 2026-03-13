@@ -60,6 +60,7 @@ class SiteTreeResponse(BaseModel):
     map_x: Optional[float] = None
     map_y: Optional[float] = None
     device_count: int = 0
+    device_stats: "DeviceStatsBase" = None
     children: List["SiteTreeResponse"] = []
 
     class Config:

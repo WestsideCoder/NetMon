@@ -111,6 +111,10 @@ export default function Settings() {
   const [snmpSaving, setSNMPSaving] = useState(false);
   const [snmpError, setSNMPError] = useState('');
   const [snmpDeleteTarget, setSNMPDeleteTarget] = useState<SNMPCredential | null>(null);
+  const [snmpTestId, setSNMPTestId] = useState<number | null>(null);
+  const [snmpTestIp, setSNMPTestIp] = useState('');
+  const [snmpTesting, setSNMPTesting] = useState(false);
+  const [snmpTestResult, setSNMPTestResult] = useState<{ success: boolean; sys_name?: string; sys_descr?: string; error?: string } | null>(null);
 
   // Notification channel state
   const [channels, setChannels] = useState<NotificationChannel[]>([]);
@@ -313,6 +317,20 @@ export default function Settings() {
 
   const setSNMPField = (field: keyof SNMPFormData, value: string | number) =>
     setSNMPForm((f) => ({ ...f, [field]: value }));
+
+  const handleTestSNMP = async () => {
+    if (!snmpTestId || !snmpTestIp.trim()) return;
+    setSNMPTesting(true);
+    setSNMPTestResult(null);
+    try {
+      const res = await api.post('/api/snmp/test', { credential_id: snmpTestId, ip_address: snmpTestIp.trim() });
+      setSNMPTestResult(res.data);
+    } catch {
+      setSNMPTestResult({ success: false, error: 'Request failed' });
+    } finally {
+      setSNMPTesting(false);
+    }
+  };
 
   // Notification channel handlers
   const openAddChannel = () => {
@@ -764,6 +782,8 @@ export default function Settings() {
                       <span className={`text-xs px-2 py-0.5 rounded ${c.enabled ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'}`}>
                         {c.enabled ? 'Active' : 'Disabled'}
                       </span>
+                      <button onClick={() => { setSNMPTestId(c.id); setSNMPTestIp(''); setSNMPTestResult(null); }}
+                        className="text-xs px-2 py-1 text-green-600 hover:bg-green-50 dark:hover:bg-gray-700 rounded">Test</button>
                       {isAdmin && (
                         <>
                           <button onClick={() => openEditSNMP(c)}
@@ -1196,6 +1216,53 @@ export default function Settings() {
         onConfirm={handleDeleteSNMP}
         onCancel={() => setSNMPDeleteTarget(null)}
       />
+
+      {/* SNMP Test Modal */}
+      {snmpTestId !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md mx-4">
+            <div className="px-6 py-4 border-b dark:border-gray-700">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Test SNMP Credential</h3>
+            </div>
+            <div className="px-6 py-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Device IP Address</label>
+                <input
+                  type="text"
+                  className="w-full border rounded-lg px-3 py-2 text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-blue-500"
+                  value={snmpTestIp}
+                  onChange={(e) => setSNMPTestIp(e.target.value)}
+                  placeholder="e.g. 10.44.1.100"
+                  onKeyDown={(e) => e.key === 'Enter' && handleTestSNMP()}
+                />
+              </div>
+              {snmpTestResult && (
+                <div className={`p-3 rounded-lg text-sm ${snmpTestResult.success ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400'}`}>
+                  {snmpTestResult.success ? (
+                    <div>
+                      <p className="font-medium">Connection successful</p>
+                      {snmpTestResult.sys_name && <p>Name: {snmpTestResult.sys_name}</p>}
+                      {snmpTestResult.sys_descr && <p className="text-xs mt-1 truncate">{snmpTestResult.sys_descr}</p>}
+                    </div>
+                  ) : (
+                    <p>{snmpTestResult.error || 'Connection failed'}</p>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="px-6 py-4 border-t dark:border-gray-700 flex justify-end gap-3">
+              <button onClick={() => setSNMPTestId(null)}
+                className="px-4 py-2 text-sm border rounded-lg hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
+                Close
+              </button>
+              <button onClick={handleTestSNMP} disabled={snmpTesting || !snmpTestIp.trim()}
+                className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50">
+                {snmpTesting ? 'Testing...' : 'Test'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Channel Delete Confirm */}
       <ConfirmDialog

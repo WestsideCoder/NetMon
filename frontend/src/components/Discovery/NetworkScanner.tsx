@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Search } from 'lucide-react';
 import { useRole } from '../../hooks/useRole';
 import api from '../../api/client';
@@ -29,6 +30,9 @@ interface ScanResult {
 
 export default function NetworkScanner() {
   const { canEdit } = useRole();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const urlSiteId = searchParams.get('site_id');
   const [range, setRange] = useState('');
   const [siteId, setSiteId] = useState<number>(0);
   const [sites, setSites] = useState<Site[]>([]);
@@ -44,9 +48,14 @@ export default function NetworkScanner() {
     api.get('/api/snmp/credentials').then((r) => setCredentials(r.data)).catch(() => {});
     api.get('/api/sites/').then((r) => {
       setSites(r.data);
-      if (r.data.length > 0) setSiteId(r.data[0].id);
+      const preselect = urlSiteId ? Number(urlSiteId) : 0;
+      if (preselect && r.data.some((s: Site) => s.id === preselect)) {
+        setSiteId(preselect);
+      } else if (r.data.length > 0) {
+        setSiteId(r.data[0].id);
+      }
     }).catch(() => {});
-  }, []);
+  }, [urlSiteId]);
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) {
@@ -134,6 +143,9 @@ export default function NetworkScanner() {
         devices: Array.from(selected),
       });
       alert(`Imported ${res.data.imported} devices`);
+      if (res.data.imported > 0 && siteId) {
+        navigate('/sites', { state: { selectSiteId: siteId } });
+      }
     } catch (err) {
       console.error('Import failed', err);
     }

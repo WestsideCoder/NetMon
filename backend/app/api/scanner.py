@@ -116,4 +116,18 @@ async def import_devices(
             imported += 1
     if imported:
         await db.commit()
+        # Trigger SNMP polls for newly imported devices with SNMP enabled
+        try:
+            from app.tasks.snmp_poll import snmp_poll_device
+            for dev in scan.devices:
+                if dev.ip_address in data.devices and dev.is_alive and dev.snmp_credential_id:
+                    # Look up the device we just created
+                    result = await db.execute(
+                        select(Device).where(Device.ip_address == dev.ip_address)
+                    )
+                    new_device = result.scalar_one_or_none()
+                    if new_device:
+                        snmp_poll_device.delay(new_device.id)
+        except Exception:
+            pass  # Non-critical
     return {"imported": imported}

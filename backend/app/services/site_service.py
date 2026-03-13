@@ -10,7 +10,8 @@ from fastapi import HTTPException, status
 
 from app.models.site import Site
 from app.models.device import Device
-from app.schemas.site import SiteCreate, SiteUpdate, SiteResponse, SiteTreeResponse
+from app.models.device import DeviceStatus
+from app.schemas.site import SiteCreate, SiteUpdate, SiteResponse, SiteTreeResponse, DeviceStatsBase
 
 
 async def get_sites(
@@ -34,13 +35,43 @@ async def get_site_tree(db: AsyncSession) -> List[SiteTreeResponse]:
     )
     all_sites = result.scalars().unique().all()
 
-    # Count devices per site
-    device_counts_result = await db.execute(
-        select(Device.site_id, func.count(Device.id)).group_by(Device.site_id)
+    # Count devices per site grouped by status
+    status_counts_result = await db.execute(
+        select(Device.site_id, Device.status, func.count(Device.id))
+        .group_by(Device.site_id, Device.status)
     )
-    device_counts = {row[0]: row[1] for row in device_counts_result.all()}
+    # Build {site_id: {status: count}}
+    status_map: dict[int, dict[str, int]] = {}
+    for site_id, dev_status, count in status_counts_result.all():
+        status_map.setdefault(site_id, {})[dev_status.value if hasattr(dev_status, 'value') else dev_status] = count
+
+    def _make_stats(site_id: int) -> DeviceStatsBase:
+        counts = status_map.get(site_id, {})
+        return DeviceStatsBase(
+            total=sum(counts.values()),
+            online=counts.get("online", 0),
+            warning=counts.get("warning", 0),
+            offline=counts.get("offline", 0),
+            unknown=counts.get("unknown", 0),
+        )
 
     def build_tree(site: Site) -> SiteTreeResponse:
+        child_nodes = [build_tree(c) for c in sorted(site.children, key=lambda s: s.name.lower())]
+        own_stats = _make_stats(site.id)
+        # Aggregate children stats into this node
+        agg = DeviceStatsBase(
+            total=own_stats.total,
+            online=own_stats.online,
+            warning=own_stats.warning,
+            offline=own_stats.offline,
+            unknown=own_stats.unknown,
+        )
+        for ch in child_nodes:
+            agg.total += ch.device_stats.total
+            agg.online += ch.device_stats.online
+            agg.warning += ch.device_stats.warning
+            agg.offline += ch.device_stats.offline
+            agg.unknown += ch.device_stats.unknown
         return SiteTreeResponse(
             id=site.id,
             name=site.name,
@@ -49,8 +80,9 @@ async def get_site_tree(db: AsyncSession) -> List[SiteTreeResponse]:
             map_image_url=site.map_image_url,
             map_x=site.map_x,
             map_y=site.map_y,
-            device_count=device_counts.get(site.id, 0),
-            children=[build_tree(c) for c in sorted(site.children, key=lambda s: s.name.lower())],
+            device_count=agg.total,
+            device_stats=agg,
+            children=child_nodes,
         )
 
     roots = [s for s in all_sites if s.parent_site_id is None]

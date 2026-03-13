@@ -117,6 +117,7 @@ export interface SiteTree {
   map_x: number | null;
   map_y: number | null;
   device_count: number;
+  device_stats: DeviceStats;
   children: SiteTree[];
 }
 
