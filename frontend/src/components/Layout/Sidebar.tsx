@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+import { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import { LayoutDashboard, Monitor, MapPin, Bell, Search, Settings, Shield, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { useSidebarStore } from '../../store/sidebarStore';
+import api from '../../api/client';
 
 const nav = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
@@ -12,8 +14,21 @@ const nav = [
   { to: '/settings', icon: Settings, label: 'Settings' },
 ];
 
+interface VersionInfo {
+  current_version: string;
+  latest_version: string | null;
+  update_available: boolean;
+  release_url: string | null;
+  error: string | null;
+}
+
 export default function Sidebar() {
   const { collapsed, toggle } = useSidebarStore();
+  const [versionInfo, setVersionInfo] = useState<VersionInfo | null>(null);
+
+  useEffect(() => {
+    api.get('/api/settings/version').then((r) => setVersionInfo(r.data)).catch(() => {});
+  }, []);
 
   return (
     <aside
@@ -56,6 +71,40 @@ export default function Sidebar() {
           </NavLink>
         ))}
       </nav>
+
+      {/* Version & update indicator */}
+      {versionInfo && (
+        <div className={`border-t border-gray-700 ${collapsed ? 'px-2 py-2' : 'px-4 py-2'}`}>
+          {collapsed ? (
+            versionInfo.update_available ? (
+              <a href={versionInfo.release_url || '#'} target="_blank" rel="noopener noreferrer" title={`Update available: v${versionInfo.latest_version}`}>
+                <div className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse mx-auto" />
+              </a>
+            ) : (
+              <div className="text-[10px] text-gray-500 text-center" title={`v${versionInfo.current_version}`}>
+                v{versionInfo.current_version}
+              </div>
+            )
+          ) : (
+            versionInfo.update_available ? (
+              <a
+                href={versionInfo.release_url || '#'}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-green-900/30 hover:bg-green-900/50 transition-colors"
+              >
+                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse shrink-0" />
+                <div className="text-xs">
+                  <span className="text-green-400 font-medium">v{versionInfo.latest_version} available</span>
+                  <span className="text-gray-500 block">Current: v{versionInfo.current_version}</span>
+                </div>
+              </a>
+            ) : (
+              <div className="text-xs text-gray-500 px-2">v{versionInfo.current_version}</div>
+            )
+          )}
+        </div>
+      )}
 
       {/* Toggle button */}
       <div className={`border-t border-gray-700 ${collapsed ? 'px-2 py-3' : 'px-3 py-3'}`}>

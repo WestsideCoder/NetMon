@@ -1,8 +1,10 @@
 # Changelog
 
-## 2026-03-13
+## v0.9.0.2 (2026-03-13)
 
 ### Added
+- **Check for Updates** — automatic version check against GitHub releases on page load (cached 24h), with manual "Check for Updates" button in Settings > About; update indicator in sidebar when new version available
+- **About section** in Settings — shows current version, latest version, release link, GitHub repo, and license info
 - **Scan for Devices button** on Sites page — navigates to Discovery with the site pre-selected
 - **List/Map view toggle** on Sites page — switch between floor plan map and device table view
 - **Sub-sites in list view** — child sites displayed in a table with device stats (name, location, devices, online/offline counts)

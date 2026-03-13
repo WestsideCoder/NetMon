@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { useState, useEffect } from 'react';
-import { Activity, Radio, Bell, Users, Mail, Shield, ChevronRight, Server } from 'lucide-react';
+import { Activity, Radio, Bell, Users, Mail, Shield, ChevronRight, Server, Info } from 'lucide-react';
 import { useRole } from '../hooks/useRole';
 import api from '../api/client';
 import type { User, SNMPCredential } from '../types';
@@ -83,7 +83,7 @@ interface DhcpSettings {
   dhcp_sync_interval: number;
 }
 
-type Section = 'monitoring' | 'snmp' | 'notifications' | 'email' | 'users' | 'ssl' | 'dhcp';
+type Section = 'monitoring' | 'snmp' | 'notifications' | 'email' | 'users' | 'ssl' | 'dhcp' | 'about';
 
 const sections: { key: Section; label: string; icon: typeof Activity }[] = [
   { key: 'monitoring', label: 'Monitoring', icon: Activity },
@@ -93,6 +93,7 @@ const sections: { key: Section; label: string; icon: typeof Activity }[] = [
   { key: 'email', label: 'Email Server', icon: Mail },
   { key: 'users', label: 'Users', icon: Users },
   { key: 'ssl', label: 'SSL / TLS', icon: Shield },
+  { key: 'about', label: 'About', icon: Info },
 ];
 
 export default function Settings() {
@@ -139,6 +140,13 @@ export default function Settings() {
   const [csvUploading, setCsvUploading] = useState(false);
   const [csvMsg, setCsvMsg] = useState('');
 
+  // Version/About state
+  const [versionInfo, setVersionInfo] = useState<{
+    current_version: string; latest_version: string | null;
+    update_available: boolean; release_url: string | null; error: string | null;
+  } | null>(null);
+  const [versionChecking, setVersionChecking] = useState(false);
+
   // Email/SMTP state
   const [smtp, setSmtp] = useState<SmtpSettings | null>(null);
   const [smtpSaving, setSmtpSaving] = useState(false);
@@ -170,6 +178,7 @@ export default function Settings() {
     loadChannels();
     loadSmtp();
     api.get('/api/settings/dhcp').then((r) => setDhcp(r.data)).catch(() => {});
+    api.get('/api/settings/version').then((r) => setVersionInfo(r.data)).catch(() => {});
   }, []);
 
   // Monitoring save
@@ -1021,6 +1030,89 @@ export default function Settings() {
               </div>
               <div className="p-5">
                 <SSLSettings />
+              </div>
+            </div>
+          )}
+
+          {activeSection === 'about' && (
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
+              <div className="px-5 py-4 border-b dark:border-gray-700">
+                <h2 className="text-lg font-semibold dark:text-white">About NetMon</h2>
+                <p className="text-xs text-gray-500 mt-0.5">Version information and updates</p>
+              </div>
+              <div className="p-5 space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Current Version</p>
+                    <p className="text-lg font-bold dark:text-white">v{versionInfo?.current_version || '...'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Latest Version</p>
+                    <p className="text-lg font-bold dark:text-white">
+                      {versionInfo?.latest_version ? `v${versionInfo.latest_version}` : versionInfo?.error || '...'}
+                    </p>
+                  </div>
+                </div>
+
+                {versionInfo?.update_available && (
+                  <div className="flex items-center gap-3 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                    <div className="w-3 h-3 rounded-full bg-green-500 animate-pulse shrink-0" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-green-800 dark:text-green-300">
+                        Update available: v{versionInfo.latest_version}
+                      </p>
+                      <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">
+                        You are running v{versionInfo.current_version}
+                      </p>
+                    </div>
+                    {versionInfo.release_url && (
+                      <a
+                        href={versionInfo.release_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3 py-1.5 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700"
+                      >
+                        View Release
+                      </a>
+                    )}
+                  </div>
+                )}
+
+                {versionInfo && !versionInfo.update_available && !versionInfo.error && (
+                  <div className="flex items-center gap-3 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                    <div className="w-3 h-3 rounded-full bg-blue-500 shrink-0" />
+                    <p className="text-sm text-blue-800 dark:text-blue-300">You are running the latest version</p>
+                  </div>
+                )}
+
+                {versionInfo?.error && (
+                  <div className="flex items-center gap-3 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                    <p className="text-sm text-yellow-800 dark:text-yellow-300">{versionInfo.error}</p>
+                  </div>
+                )}
+
+                <button
+                  onClick={async () => {
+                    setVersionChecking(true);
+                    try {
+                      const r = await api.get('/api/settings/version', { params: { force: true } });
+                      setVersionInfo(r.data);
+                    } catch { /* empty */ }
+                    setVersionChecking(false);
+                  }}
+                  disabled={versionChecking}
+                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {versionChecking ? 'Checking...' : 'Check for Updates'}
+                </button>
+
+                <div className="pt-4 border-t dark:border-gray-700 text-xs text-gray-500 dark:text-gray-400 space-y-1">
+                  <p>NetMon (Beta) — Network Monitoring Tool</p>
+                  <p>Licensed under GNU GPL v3</p>
+                  <a href="https://github.com/WestsideCoder/NetMon" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline">
+                    github.com/WestsideCoder/NetMon
+                  </a>
+                </div>
               </div>
             </div>
           )}

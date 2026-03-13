@@ -13,7 +13,7 @@ class Settings(BaseSettings):
 
     # Application
     APP_NAME: str = "NetMon (Beta)"
-    VERSION: str = "0.9.0"
+    VERSION: str = "0.9.0.2"
     ENVIRONMENT: str = "development"
     DEBUG: bool = False
 

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "netmon-backend"
-version = "0.9.0"
+version = "0.9.0.2"
 description = "Network Monitoring System - Professional Edition"
 authors = ["Your Team"]
 

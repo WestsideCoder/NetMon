@@ -387,6 +387,74 @@ async def import_names_csv(
     )
 
 
+GITHUB_REPO = "WestsideCoder/NetMon"
+_update_cache: dict[str, object] = {}
+
+
+class VersionInfo(BaseModel):
+    current_version: str
+    latest_version: str | None = None
+    update_available: bool = False
+    release_url: str | None = None
+    error: str | None = None
+
+
+@router.get("/version", response_model=VersionInfo)
+async def check_version(
+    force: bool = False,
+    _user: User = Depends(get_current_user),
+):
+    """Check current version and compare against latest GitHub release."""
+    import time
+    import httpx
+
+    current = settings.VERSION
+    cache_key = "version_check"
+    if not force:
+        cached = _update_cache.get(cache_key)
+        if cached:
+            ts, info = cached
+            if time.time() - ts < 86400:  # 24h cache
+                return info
+
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(
+                f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest",
+                headers={"Accept": "application/vnd.github.v3+json"},
+            )
+        if resp.status_code == 200:
+            data = resp.json()
+            tag = data.get("tag_name", "").lstrip("v")
+            html_url = data.get("html_url", "")
+            info = VersionInfo(
+                current_version=current,
+                latest_version=tag,
+                update_available=tag != current and tag > current,
+                release_url=html_url,
+            )
+        elif resp.status_code == 404:
+            info = VersionInfo(
+                current_version=current,
+                latest_version=None,
+                error="No releases published yet",
+            )
+        else:
+            info = VersionInfo(
+                current_version=current,
+                error=f"GitHub API returned {resp.status_code}",
+            )
+    except Exception as exc:
+        logger.warning("Version check failed: %s", exc)
+        info = VersionInfo(
+            current_version=current,
+            error="Could not reach GitHub",
+        )
+
+    _update_cache[cache_key] = (time.time(), info)
+    return info
+
+
 def _update_env(path: str, updates: dict[str, str]) -> None:
     """Update key=value pairs in an .env file."""
     lines = []
