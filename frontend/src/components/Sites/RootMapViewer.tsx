@@ -25,8 +25,26 @@ export default function RootMapViewer({ onSelectSite }: Props) {
   const [saving, setSaving] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
   const [imageError, setImageError] = useState(false);
+  const [imageDims, setImageDims] = useState<{ w: number; h: number } | null>(null);
   const mapRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const { canEdit } = useRole();
+
+  // Compute zoom that fits the entire image in the visible container
+  const computeFitZoom = useCallback(() => {
+    if (!imageDims || !scrollRef.current) return 1;
+    const containerW = scrollRef.current.clientWidth;
+    const containerH = scrollRef.current.clientHeight || scrollRef.current.parentElement?.clientHeight || window.innerHeight - 250;
+    const imageDisplayH = containerW * (imageDims.h / imageDims.w);
+    if (imageDisplayH <= containerH) return 1;
+    return Math.max(0.1, containerH / imageDisplayH);
+  }, [imageDims]);
+
+  // Auto-fit zoom when image dimensions are known
+  useEffect(() => {
+    if (!imageDims) return;
+    setZoom(computeFitZoom());
+  }, [imageDims, computeFitZoom]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -109,6 +127,7 @@ export default function RootMapViewer({ onSelectSite }: Props) {
 
   const handleUploadSuccess = () => {
     setShowUpload(false);
+    setImageDims(null);
     fetchData();
     setImageError(false);
   };
@@ -212,7 +231,7 @@ export default function RootMapViewer({ onSelectSite }: Props) {
       <div className="flex gap-3">
         {/* Main map area */}
         <div className="flex-1 bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden relative">
-          <div className="overflow-auto" style={{ position: 'relative', maxHeight: 'calc(100vh - 14rem)' }}>
+          <div ref={scrollRef} className="overflow-auto" style={{ position: 'relative', maxHeight: 'calc(100vh - 14rem)' }}>
             <div
               ref={mapRef}
               className="relative"
@@ -235,6 +254,10 @@ export default function RootMapViewer({ onSelectSite }: Props) {
                   className="w-full block"
                   draggable={false}
                   onError={() => setImageError(true)}
+                  onLoad={(e) => {
+                    const img = e.currentTarget;
+                    setImageDims({ w: img.naturalWidth, h: img.naturalHeight });
+                  }}
                 />
               )}
               {/* Site markers */}
@@ -276,7 +299,7 @@ export default function RootMapViewer({ onSelectSite }: Props) {
             <button onClick={() => setZoom(z => Math.max(0.1, +(z - 0.25).toFixed(2)))} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-600" title="Zoom out">
               <ZoomOut className="h-4 w-4 text-gray-600 dark:text-gray-300" />
             </button>
-            <button onClick={() => setZoom(0.5)} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-b-lg" title="Fit to frame">
+            <button onClick={() => setZoom(computeFitZoom())} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-b-lg" title="Fit to frame">
               <Maximize className="h-4 w-4 text-gray-600 dark:text-gray-300" />
             </button>
           </div>

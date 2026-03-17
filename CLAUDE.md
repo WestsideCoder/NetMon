@@ -1,7 +1,7 @@
 # NetMon — Claude Code Guide
 
 ## What is this?
-NetMon is a network monitoring tool (Beta v0.9.0.2) built with FastAPI + React. It monitors devices via ICMP ping, SNMP, HTTP checks, syslog, and SNMP traps.
+NetMon is a network monitoring tool (Beta v0.9.0.4) built with FastAPI + React. It monitors devices via ICMP ping, SNMP, HTTP checks, syslog, and SNMP traps.
 
 ## Project Structure
 ```

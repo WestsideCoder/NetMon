@@ -6,7 +6,7 @@ import json
 import logging
 from datetime import datetime
 
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.orm import joinedload
 
 from app.tasks import celery_app
@@ -68,6 +68,9 @@ def snmp_poll_all_devices():
                     device.status = DeviceStatus.WARNING
                     device.status_reason = "SNMP"
                     logger.warning("SNMP poll failed for %s, setting WARNING", device.name)
+                    from app.services.alert_service import notify_status_change
+                    from app.models.alert import AlertSeverity
+                    notify_status_change(db, device, AlertSeverity.WARNING, "SNMP poll failed", metric_name="snmp_failure")
 
         db.commit()
         logger.info("SNMP polled %d devices", polled)
@@ -476,7 +479,8 @@ def _compute_cisco_memory_percent(db, device: Device, oids_to_poll: dict, result
 def _check_ups_battery_status(db, device: Device, oids_to_poll: dict, results: dict) -> None:
     """Override device status if UPS battery status indicates on-battery or low.
     Auto-resolve alerts when conditions return to normal."""
-    from app.services.alert_service import auto_resolve_alerts
+    from app.services.alert_service import auto_resolve_alerts, notify_status_change
+    from app.models.alert import Alert, AlertStatus
 
     dtype = device.device_type.value if device.device_type else None
     if dtype != "ups":
@@ -496,20 +500,32 @@ def _check_ups_battery_status(db, device: Device, oids_to_poll: dict, results: d
             continue
 
         if status_val >= 4:
+            prev = device.status
             device.status = DeviceStatus.OFFLINE
             device.status_reason = "Battery Depleted"
             battery_problem = True
             logger.warning("UPS %s battery depleted (status=%d), setting OFFLINE", device.name, status_val)
+            if prev != DeviceStatus.OFFLINE:
+                from app.models.alert import AlertSeverity as _Sev
+                notify_status_change(db, device, _Sev.CRITICAL, "Battery Depleted", metric_name="ups_battery")
         elif status_val == 3:
+            prev = device.status
             device.status = DeviceStatus.OFFLINE
             device.status_reason = "Battery Low"
             battery_problem = True
             logger.warning("UPS %s battery low (status=%d), setting OFFLINE", device.name, status_val)
+            if prev != DeviceStatus.OFFLINE:
+                from app.models.alert import AlertSeverity as _Sev
+                notify_status_change(db, device, _Sev.CRITICAL, "Battery Low", metric_name="ups_battery")
         elif status_val == 1:
+            prev = device.status
             device.status = DeviceStatus.WARNING
             device.status_reason = "Battery Unknown"
             battery_problem = True
             logger.info("UPS %s battery status unknown (status=%d), setting WARNING", device.name, status_val)
+            if prev == DeviceStatus.ONLINE:
+                from app.models.alert import AlertSeverity as _Sev
+                notify_status_change(db, device, _Sev.WARNING, "Battery Unknown", metric_name="ups_battery")
         else:
             # Battery normal — auto-resolve battery health alerts
             auto_resolve_alerts(db, device.id, "upsBasicBatteryStatus")
@@ -518,6 +534,17 @@ def _check_ups_battery_status(db, device: Device, oids_to_poll: dict, results: d
 
     if battery_problem:
         return
+
+    # Collect input voltage to cross-check on-battery status
+    input_voltage = None
+    for oid, value in results.items():
+        oid_name = oids_to_poll.get(oid, {}).get("name", "")
+        if oid_name == "upsAdvInputLineVoltage":
+            try:
+                input_voltage = float(str(value))
+            except (ValueError, TypeError):
+                pass
+            break
 
     # Check output source — detect "on battery" even when battery health is normal
     for oid, value in results.items():
@@ -534,16 +561,44 @@ def _check_ups_battery_status(db, device: Device, oids_to_poll: dict, results: d
         elif oid_name == "upsOutputSource":
             on_battery = source_val == 5
 
+        # Cross-check: if input voltage is present and normal, UPS has mains power
+        # despite what the output status reports (common APC NMC firmware issue)
+        if on_battery and input_voltage is not None and input_voltage > 90:
+            logger.info(
+                "UPS %s reports on-battery (source=%d) but input voltage is %.0fV — "
+                "ignoring false on-battery status", device.name, source_val, input_voltage
+            )
+            on_battery = False
+
         if on_battery:
+            prev = device.status
             device.status = DeviceStatus.WARNING
             device.status_reason = "On Battery"
             logger.warning("UPS %s is on battery power (source=%d), setting WARNING", device.name, source_val)
+            if prev == DeviceStatus.ONLINE:
+                from app.models.alert import AlertSeverity as _Sev
+                notify_status_change(db, device, _Sev.WARNING, "On Battery", metric_name="ups_on_battery")
         else:
             # Back on line power — auto-resolve on-battery alerts
             auto_resolve_alerts(db, device.id, "upsBasicOutputStatus")
             auto_resolve_alerts(db, device.id, "upsOutputSource")
             logger.info("UPS %s back on line power (source=%d)", device.name, source_val)
         break
+
+    # If no battery or output source problems detected, ensure device is cleared
+    # to ONLINE when no active alerts remain (fixes stuck WARNING from prior direct
+    # status overrides that weren't backed by an alert object)
+    if not battery_problem and not on_battery:
+        remaining = db.execute(
+            select(func.count(Alert.id)).where(
+                Alert.device_id == device.id,
+                Alert.status == AlertStatus.ACTIVE,
+            )
+        ).scalar() or 0
+        if remaining == 0 and device.status == DeviceStatus.WARNING:
+            device.status = DeviceStatus.ONLINE
+            device.status_reason = None
+            logger.info("UPS %s all clear, resetting to ONLINE", device.name)
 
 
 def _check_server_metrics(db, device: Device) -> None:
@@ -591,8 +646,13 @@ def _check_server_metrics(db, device: Device) -> None:
                         device.name, label, val, warn_pct)
 
     if reasons:
+        prev = device.status
         device.status = DeviceStatus.WARNING
         device.status_reason = ", ".join(reasons)
+        if prev == DeviceStatus.ONLINE:
+            from app.services.alert_service import notify_status_change
+            from app.models.alert import AlertSeverity as _Sev
+            notify_status_change(db, device, _Sev.WARNING, ", ".join(reasons), metric_name="server_metrics")
 
 
 def _get_oids_for_device(device: Device) -> dict:

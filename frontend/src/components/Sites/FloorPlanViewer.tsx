@@ -33,8 +33,20 @@ export default function FloorPlanViewer({ site, children: childSites, onUploadIm
   const [editSitePositions, setEditSitePositions] = useState<Record<number, { x: number; y: number }>>({});
   const [saving, setSaving] = useState(false);
   const [imageError, setImageError] = useState(false);
+  const [imageDims, setImageDims] = useState<{ w: number; h: number } | null>(null);
   const mapRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const { canEdit } = useRole();
+
+  // Compute zoom that fits the entire image in the visible container
+  const computeFitZoom = useCallback(() => {
+    if (!imageDims || !scrollRef.current) return 1;
+    const containerW = scrollRef.current.clientWidth;
+    const containerH = scrollRef.current.clientHeight || scrollRef.current.parentElement?.clientHeight || window.innerHeight - 250;
+    const imageDisplayH = containerW * (imageDims.h / imageDims.w);
+    if (imageDisplayH <= containerH) return 1;
+    return Math.max(0.1, containerH / imageDisplayH);
+  }, [imageDims]);
 
   const fetchDevices = useCallback(async () => {
     setLoading(true);
@@ -52,10 +64,15 @@ export default function FloorPlanViewer({ site, children: childSites, onUploadIm
     setEditMode(false);
     setEditPositions({});
     setEditSitePositions({});
-    const savedZoom = localStorage.getItem(`map-zoom-site-${site.id}`);
-    setZoom(savedZoom ? Number(savedZoom) : 1);
+    setImageDims(null);
     setImageError(false);
   }, [fetchDevices]);
+
+  // Auto-fit zoom when image dimensions are known or container resizes
+  useEffect(() => {
+    if (!imageDims) return;
+    setZoom(computeFitZoom());
+  }, [imageDims, computeFitZoom]);
 
   useEffect(() => {
     localStorage.setItem(`map-zoom-site-${site.id}`, String(zoom));
@@ -308,7 +325,7 @@ export default function FloorPlanViewer({ site, children: childSites, onUploadIm
       <div className="flex gap-3">
         {/* Main map area */}
         <div className="flex-1 bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden relative">
-          <div className="overflow-auto" style={{ position: 'relative', maxHeight: 'calc(100vh - 14rem)' }}>
+          <div ref={scrollRef} className="overflow-auto" style={{ position: 'relative', maxHeight: 'calc(100vh - 14rem)' }}>
             <div
               ref={mapRef}
               className="relative"
@@ -331,6 +348,10 @@ export default function FloorPlanViewer({ site, children: childSites, onUploadIm
                   className="w-full block"
                   draggable={false}
                   onError={() => setImageError(true)}
+                  onLoad={(e) => {
+                    const img = e.currentTarget;
+                    setImageDims({ w: img.naturalWidth, h: img.naturalHeight });
+                  }}
                 />
               )}
               {/* Child site markers */}
@@ -398,7 +419,7 @@ export default function FloorPlanViewer({ site, children: childSites, onUploadIm
             <button onClick={() => setZoom(z => Math.max(0.1, +(z - 0.25).toFixed(2)))} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-600" title="Zoom out">
               <ZoomOut className="h-4 w-4 text-gray-600 dark:text-gray-300" />
             </button>
-            <button onClick={() => setZoom(0.5)} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-b-lg" title="Fit to frame">
+            <button onClick={() => setZoom(computeFitZoom())} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-b-lg" title="Fit to frame">
               <Maximize className="h-4 w-4 text-gray-600 dark:text-gray-300" />
             </button>
           </div>
@@ -434,8 +455,8 @@ export default function FloorPlanViewer({ site, children: childSites, onUploadIm
                   onDragStart={(e) => e.dataTransfer.setData('site-id', String(child.id))}
                   className="flex items-center gap-2 px-2 py-1.5 rounded text-xs cursor-grab hover:bg-gray-100 dark:hover:bg-gray-700 border dark:border-gray-700"
                 >
-                  <Building2 className={`h-3 w-3 shrink-0 ${child.device_stats.offline > 0 ? 'text-red-500' : 'text-blue-500'}`} />
-                  <span className={`truncate ${child.device_stats.offline > 0 ? 'text-red-600 dark:text-red-400 font-medium' : 'dark:text-gray-300'}`}>{child.name}</span>
+                  <Building2 className={`h-3 w-3 shrink-0 ${child.device_stats.offline > 0 ? 'text-red-500' : child.device_stats.warning > 0 ? 'text-yellow-500' : 'text-blue-500'}`} />
+                  <span className={`truncate ${child.device_stats.offline > 0 ? 'text-red-600 dark:text-red-400 font-medium' : child.device_stats.warning > 0 ? 'text-yellow-600 dark:text-yellow-400 font-medium' : 'dark:text-gray-300'}`}>{child.name}</span>
                 </div>
               ))}
               {/* Unpositioned devices */}

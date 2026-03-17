@@ -40,6 +40,8 @@ export default function DashboardMapWidget() {
             className={`group block rounded-lg border overflow-hidden hover:ring-2 transition-all ${
               site.device_stats?.offline > 0
                 ? 'border-red-300 dark:border-red-700 hover:ring-red-300'
+                : site.device_stats?.warning > 0
+                ? 'border-yellow-300 dark:border-yellow-700 hover:ring-yellow-300'
                 : 'dark:border-gray-700 hover:ring-blue-300'
             }`}
           >
@@ -55,7 +57,7 @@ export default function DashboardMapWidget() {
               )}
             </div>
             <div className="px-3 py-2">
-              <p className={`text-sm font-medium truncate ${site.device_stats?.offline > 0 ? 'text-red-600 dark:text-red-400' : 'dark:text-white'}`}>{site.name}</p>
+              <p className={`text-sm font-medium truncate ${site.device_stats?.offline > 0 ? 'text-red-600 dark:text-red-400' : site.device_stats?.warning > 0 ? 'text-yellow-600 dark:text-yellow-400' : 'dark:text-white'}`}>{site.name}</p>
               <p className="text-xs text-gray-500 dark:text-gray-400">{site.device_count} device{site.device_count !== 1 ? 's' : ''}</p>
             </div>
           </Link>

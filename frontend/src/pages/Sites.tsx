@@ -9,7 +9,7 @@ import RootMapViewer from '../components/Sites/RootMapViewer';
 import ConfirmDialog from '../components/Common/ConfirmDialog';
 import { useRole } from '../hooks/useRole';
 import api from '../api/client';
-import type { Site } from '../types';
+import type { Site, SiteTree } from '../types';
 
 export default function Sites() {
   const { canEdit } = useRole();
@@ -17,10 +17,37 @@ export default function Sites() {
   const [showForm, setShowForm] = useState(false);
   const [editSite, setEditSite] = useState<Site | null>(null);
   const [addChildParentId, setAddChildParentId] = useState<number | null>(null);
-  const [selectedId, setSelectedId] = useState<number | null>(() => {
+  const [selectedId, setSelectedIdState] = useState<number | null>(() => {
     const navState = location.state as { selectSiteId?: number } | null;
-    return navState?.selectSiteId ?? null;
+    if (navState?.selectSiteId != null) return navState.selectSiteId;
+    const saved = sessionStorage.getItem('site-selected-id');
+    return saved ? Number(saved) : null;
   });
+  const setSelectedId = useCallback((id: number | null) => {
+    setSelectedIdState(id);
+    if (id != null) {
+      sessionStorage.setItem('site-selected-id', String(id));
+    } else {
+      sessionStorage.removeItem('site-selected-id');
+    }
+  }, []);
+
+  // Clear navigation state after consuming it so refresh / back‑button
+  // doesn't re‑select a child site instead of showing the root map.
+  useEffect(() => {
+    if (location.state) {
+      window.history.replaceState({}, '');
+    }
+  }, []);
+
+  // Auto‑select the only root site so the user lands on the site panel
+  // (with edit buttons) instead of the overview map layer.
+  const handleTreeLoaded = useCallback((tree: SiteTree[]) => {
+    if (tree.length === 1 && !selectedId) {
+      setSelectedId(tree[0].id);
+    }
+  }, [selectedId]);
+
   const [selectedSite, setSelectedSite] = useState<Site | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Site | null>(null);
   const [treeKey, setTreeKey] = useState(0);
@@ -101,7 +128,7 @@ export default function Sites() {
       <div className="flex flex-col lg:flex-row gap-6">
         {/* Tree */}
         <div className="lg:w-[19%] lg:shrink-0">
-          <SiteTreeView key={treeKey} onSelect={setSelectedId} selectedId={selectedId} />
+          <SiteTreeView key={treeKey} onSelect={setSelectedId} selectedId={selectedId} onTreeLoaded={handleTreeLoaded} />
         </div>
 
         {/* Map panel */}

@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.9.0.4 (2026-03-17)
+
+### Added
+- **Real-time alert notifications** — status change events (ping offline, SNMP failure, HTTP error, UPS battery) now immediately create alerts and dispatch email/webhook notifications via all enabled notification channels, with deduplication by metric name
+- **Device name in alerts** — alert list now shows a dedicated Device column with the device name (loaded via joinedload), making it easier to identify affected devices at a glance
+- **Warning status coloring** — sites with devices in WARNING state now show yellow highlighting across all views: site tree, child grid cards, list view, dashboard map widget, floor plan sidebar, and map markers (previously only offline/red was shown)
+- **Map auto-fit zoom** — floor plan and root map viewers now automatically calculate and apply the optimal zoom level to fit the entire image in the viewport on load; "Fit to frame" button uses the same calculation
+- **Site navigation persistence** — selected site ID, drill-down navigation stack, and tree expansion state are now saved to sessionStorage, preserving your place across page refreshes and back-button navigation
+- **Auto-select single root site** — when only one root site exists, it is automatically selected on page load so users land directly on the site panel with edit controls
+- **UPS false on-battery cross-check** — SNMP polling now cross-checks input voltage when a UPS reports on-battery status; if input voltage is above 90V (mains present), the false on-battery state is ignored (common APC NMC firmware issue)
+
+### Fixed
+- **Stale alert auto-resolution** — alerts for metrics that are no longer collected are now automatically resolved instead of staying active indefinitely
+- **Ping alert recovery** — both active and acknowledged ping alerts are now resolved when a device comes back online (previously only acknowledged alerts were cleared)
+- **UPS stuck WARNING** — UPS devices that had no remaining active alerts but were still in WARNING status are now properly reset to ONLINE
+
+### Changed
+- **Docker Compose restart policy** — added `restart: unless-stopped` to all services (db, redis, backend, celery-worker, celery-beat, nginx) for automatic recovery after host reboots
+- **Alert notification consolidation** — unified notification dispatch logic into `alert_service.py` (`notify_status_change` + `_dispatch_notification`), replacing the separate `_send_notification` in the alerts task
+
 ## v0.9.0.2 (2026-03-13)
 
 ### Added

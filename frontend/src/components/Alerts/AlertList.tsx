@@ -29,6 +29,7 @@ export default function AlertList({ alerts, onUpdate }: Props) {
         <thead className="text-xs uppercase bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
           <tr>
             <th className="px-4 py-3">Severity</th>
+            <th className="px-4 py-3">Device</th>
             <th className="px-4 py-3">Title</th>
             <th className="px-4 py-3">Status</th>
             <th className="px-4 py-3">Triggered</th>
@@ -39,7 +40,8 @@ export default function AlertList({ alerts, onUpdate }: Props) {
           {sorted.map((a) => (
             <tr key={a.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
               <td className="px-4 py-3"><StatusBadge status={a.severity} /></td>
-              <td className="px-4 py-3"><Link to={`/devices/${a.device_id}`} className="font-medium text-primary-600 hover:underline dark:text-primary-400">{a.title}</Link></td>
+              <td className="px-4 py-3"><Link to={`/devices/${a.device_id}`} className="text-primary-600 hover:underline dark:text-primary-400 whitespace-nowrap">{a.device_name || `Device #${a.device_id}`}</Link></td>
+              <td className="px-4 py-3"><span className="font-medium">{a.title}</span></td>
               <td className="px-4 py-3"><StatusBadge status={a.status} /></td>
               <td className="px-4 py-3 text-gray-500 dark:text-gray-400 text-xs">
                 {formatRelative(a.triggered_at)}

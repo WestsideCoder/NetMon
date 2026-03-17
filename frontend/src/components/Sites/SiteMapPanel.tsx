@@ -21,9 +21,24 @@ interface Props {
   onReload: () => void;
 }
 
+const NAV_STACK_KEY = 'site-nav-stack';
+
+function saveNavStackIds(stack: Site[]) {
+  sessionStorage.setItem(NAV_STACK_KEY, JSON.stringify(stack.map(s => s.id)));
+}
+
+function loadNavStackIds(): number[] {
+  try {
+    const raw = sessionStorage.getItem(NAV_STACK_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch { /* empty */ }
+  return [];
+}
+
 export default function SiteMapPanel({ site, onEdit, onDelete, onAddChild, onReload }: Props) {
   const navigate = useNavigate();
-  const [navStack, setNavStack] = useState<Site[]>([site]);
+  const [navStack, setNavStackState] = useState<Site[]>([site]);
+  const [navRestored, setNavRestored] = useState(false);
   const [children, setChildren] = useState<SiteChildWithStats[]>([]);
   const [childrenLoading, setChildrenLoading] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -40,11 +55,35 @@ export default function SiteMapPanel({ site, onEdit, onDelete, onAddChild, onRel
   const [listLoading, setListLoading] = useState(false);
   const { canEdit, isAdmin } = useRole();
 
+  const setNavStack = useCallback((updater: Site[] | ((prev: Site[]) => Site[])) => {
+    setNavStackState(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      saveNavStackIds(next);
+      return next;
+    });
+  }, []);
+
   const currentSite = navStack[navStack.length - 1];
 
-  // When externally-selected site changes, reset nav stack
+  // When externally-selected site changes, restore saved nav stack or reset
   useEffect(() => {
-    setNavStack([site]);
+    const savedIds = loadNavStackIds();
+    // Restore if the saved stack starts with this site and has drill-down entries
+    if (savedIds.length > 1 && savedIds[0] === site.id && !navRestored) {
+      setNavRestored(true);
+      // Fetch all sites in the saved stack
+      Promise.all(savedIds.map(id => api.get(`/api/sites/${id}`).then(r => r.data)))
+        .then(sites => {
+          setNavStackState(sites);
+          saveNavStackIds(sites);
+        })
+        .catch(() => {
+          setNavStack([site]);
+        });
+    } else {
+      setNavStack([site]);
+      setNavRestored(true);
+    }
     setDetailOpen(false);
   }, [site.id]);
 
@@ -268,7 +307,7 @@ export default function SiteMapPanel({ site, onEdit, onDelete, onAddChild, onRel
                       <tr key={c.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer" onClick={() => handleDrillDown(c)}>
                         <td className="px-4 py-3">
                           <span className={`hover:underline font-medium flex items-center gap-1.5 ${
-                            c.device_stats.offline > 0 ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'
+                            c.device_stats.offline > 0 ? 'text-red-600 dark:text-red-400' : c.device_stats.warning > 0 ? 'text-yellow-600 dark:text-yellow-400' : 'text-blue-600 dark:text-blue-400'
                           }`}>
                             <FolderPlus className="h-3.5 w-3.5" />
                             {c.name}
@@ -281,7 +320,7 @@ export default function SiteMapPanel({ site, onEdit, onDelete, onAddChild, onRel
                           <span className="text-green-600 dark:text-green-400">{c.device_stats.online}</span>
                         </td>
                         <td className="px-4 py-3">
-                          <span className={c.device_stats.offline > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-gray-300'}>{c.device_stats.offline}</span>
+                          <span className={c.device_stats.offline > 0 ? 'text-red-600 dark:text-red-400' : c.device_stats.warning > 0 ? 'text-yellow-600 dark:text-yellow-400' : 'text-gray-600 dark:text-gray-300'}>{c.device_stats.offline}</span>
                         </td>
                       </tr>
                     ))}

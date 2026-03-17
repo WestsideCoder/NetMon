@@ -85,6 +85,8 @@ export default function SiteChildGrid({ children, onSelect, loading }: Props) {
                 <h4 className={`text-sm font-semibold truncate transition-colors ${
                   child.device_stats.offline > 0
                     ? 'text-red-600 dark:text-red-400 group-hover:text-red-700 dark:group-hover:text-red-300'
+                    : child.device_stats.warning > 0
+                    ? 'text-yellow-600 dark:text-yellow-400 group-hover:text-yellow-700 dark:group-hover:text-yellow-300'
                     : 'dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400'
                 }`}>
                   {child.name}

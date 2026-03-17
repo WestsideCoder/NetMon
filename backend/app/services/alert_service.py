@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """
-Alert evaluation, state machine, and deduplication.
+Alert evaluation, state machine, deduplication, and notifications.
 """
+import json
 import logging
 import operator
 from datetime import datetime
@@ -9,7 +10,7 @@ from typing import Optional, List
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 
-from app.models.alert import Alert, AlertRule, AlertStatus, AlertSeverity
+from app.models.alert import Alert, AlertRule, AlertStatus, AlertSeverity, NotificationChannel
 from app.models.device import Device, DeviceStatus
 
 logger = logging.getLogger(__name__)
@@ -38,6 +39,8 @@ def evaluate_thresholds(
             continue
         value = metrics.get(rule.metric_name)
         if value is None:
+            # Metric not collected — auto-resolve any stale alerts for this rule
+            _auto_resolve_by_rule(db, device.id, rule.id)
             continue
         op = CONDITION_OPS.get(rule.condition)
         if op is None:
@@ -170,3 +173,115 @@ def _maybe_clear_device_status(db: Session, device_id: int) -> None:
             device.status = DeviceStatus.ONLINE
             device.status_reason = None
             db.flush()
+
+
+def notify_status_change(
+    db: Session,
+    device: Device,
+    severity: AlertSeverity,
+    reason: str,
+    metric_name: str = "status_change",
+) -> None:
+    """Create an alert and immediately send notifications for a status change.
+
+    Called by ping, SNMP, and HTTP tasks when a device degrades to WARNING or OFFLINE.
+    Deduplicates by metric_name so repeated failures don't spam notifications.
+    """
+    now = datetime.utcnow()
+
+    # Check for duplicate active alert with same metric_name
+    existing = db.execute(
+        select(func.count(Alert.id)).where(
+            Alert.device_id == device.id,
+            Alert.metric_name == metric_name,
+            Alert.status.in_([AlertStatus.ACTIVE, AlertStatus.ACKNOWLEDGED]),
+        )
+    ).scalar() or 0
+
+    alert = Alert(
+        device_id=device.id,
+        severity=severity,
+        status=AlertStatus.ACTIVE,
+        title=f"{device.name}: {reason}",
+        message=f"Device {device.name} ({device.ip_address}) — {reason}",
+        metric_name=metric_name,
+        metric_value=reason,
+        triggered_at=now,
+    )
+
+    if existing == 0:
+        db.add(alert)
+        db.flush()
+
+    # Send notifications to all enabled channels
+    channels = db.execute(
+        select(NotificationChannel).where(NotificationChannel.enabled == True)  # noqa: E712
+    ).scalars().all()
+
+    for channel in channels:
+        try:
+            _dispatch_notification(alert, channel)
+        except Exception:
+            logger.exception(
+                "Failed to notify channel %s for device %s", channel.name, device.name
+            )
+
+
+def _dispatch_notification(alert: Alert, channel: NotificationChannel) -> None:
+    """Send a notification via the given channel (sync)."""
+    try:
+        config = json.loads(channel.config) if channel.config else {}
+    except json.JSONDecodeError:
+        config = {}
+
+    if channel.channel_type == "email":
+        _send_email_notification(alert, config)
+        alert.email_sent = True
+    elif channel.channel_type in ("webhook", "slack"):
+        _send_webhook_notification(alert, config)
+        alert.webhook_sent = True
+    else:
+        logger.warning("Unknown channel type: %s", channel.channel_type)
+
+
+def _send_email_notification(alert: Alert, config: dict) -> None:
+    """Send email notification."""
+    import smtplib
+    from email.mime.text import MIMEText
+    from app.config import settings
+
+    to_addr = config.get("to", str(settings.SMTP_FROM))
+    msg = MIMEText(
+        f"Alert: {alert.title}\n\n{alert.message}\n\n"
+        f"Severity: {alert.severity.value}\n"
+        f"Triggered: {alert.triggered_at}"
+    )
+    msg["Subject"] = f"[NetMon] {alert.severity.value.upper()}: {alert.title}"
+    msg["From"] = str(settings.SMTP_FROM)
+    msg["To"] = to_addr
+
+    if settings.SMTP_USERNAME and settings.SMTP_PASSWORD:
+        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
+            server.starttls()
+            server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
+            server.send_message(msg)
+        logger.info("Email sent for alert: %s to %s", alert.title, to_addr)
+    else:
+        logger.warning("SMTP not configured, skipping email for: %s", alert.title)
+
+
+def _send_webhook_notification(alert: Alert, config: dict) -> None:
+    """Send webhook notification."""
+    import httpx
+    url = config.get("url")
+    if not url:
+        return
+    payload = {
+        "text": f"[{alert.severity.value.upper()}] {alert.title}",
+        "severity": alert.severity.value,
+        "message": alert.message,
+        "triggered_at": alert.triggered_at.isoformat() if alert.triggered_at else None,
+    }
+    with httpx.Client(timeout=10) as client:
+        client.post(url, json=payload)
+    logger.info("Webhook sent for alert: %s", alert.title)

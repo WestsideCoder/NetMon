@@ -8,6 +8,7 @@ from app.schemas import UTCDatetime
 class AlertResponse(BaseModel):
     id: int
     device_id: int
+    device_name: Optional[str] = None
     rule_id: Optional[int]
     severity: AlertSeverity
     status: AlertStatus

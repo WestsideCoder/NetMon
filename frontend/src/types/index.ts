@@ -147,6 +147,7 @@ export interface MapImage {
 export interface Alert {
   id: number;
   device_id: number;
+  device_name: string | null;
   rule_id: number | null;
   severity: AlertSeverity;
   status: AlertStatus;

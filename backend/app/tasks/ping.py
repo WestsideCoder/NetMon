@@ -13,7 +13,7 @@ from sqlalchemy import select, func
 from app.tasks import celery_app
 from app.database import SyncSessionLocal
 from app.models.device import Device, DeviceStatus
-from app.models.alert import StatusHistory, Alert, AlertStatus
+from app.models.alert import StatusHistory, Alert, AlertStatus, AlertSeverity
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -259,6 +259,7 @@ def ping_all_devices():
 def _update_device_status(db, device: Device, ping_result: dict) -> None:
     """Update device status based on ping result."""
     now = datetime.utcnow()
+    prev_status = device.status
     device.last_check = now
     device.total_checks += 1
 
@@ -270,14 +271,15 @@ def _update_device_status(db, device: Device, ping_result: dict) -> None:
         device.last_seen = now
         device.consecutive_failures = 0
         device.successful_checks += 1
-        # Auto-resolve acknowledged ping alerts so they re-fire if the issue recurs
-        acked_ping_alerts = db.execute(
+        # Auto-resolve ping alerts so they re-fire if the issue recurs
+        ping_alerts = db.execute(
             select(Alert).where(
                 Alert.device_id == device.id,
-                Alert.status == AlertStatus.ACKNOWLEDGED,
+                Alert.status.in_([AlertStatus.ACTIVE, AlertStatus.ACKNOWLEDGED]),
+                Alert.metric_name.in_(["ping_offline", "consecutive_failures"]),
             )
         ).scalars().all()
-        for alert in acked_ping_alerts:
+        for alert in ping_alerts:
             alert.status = AlertStatus.RESOLVED
             alert.resolved_at = now
         # Don't reset to ONLINE if there are active (non-acknowledged) alerts
@@ -308,3 +310,9 @@ def _update_device_status(db, device: Device, ping_result: dict) -> None:
         timestamp=now,
     )
     db.add(history)
+
+    # Send notifications on transition to WARNING or OFFLINE
+    if device.status in (DeviceStatus.WARNING, DeviceStatus.OFFLINE) and device.status != prev_status:
+        from app.services.alert_service import notify_status_change
+        severity = AlertSeverity.CRITICAL if device.status == DeviceStatus.OFFLINE else AlertSeverity.WARNING
+        notify_status_change(db, device, severity, device.status_reason or "Ping", metric_name="ping_offline")

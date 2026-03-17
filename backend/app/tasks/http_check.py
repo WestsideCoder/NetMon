@@ -70,6 +70,9 @@ def _check_device_url(db, device: Device) -> None:
             if device.status == DeviceStatus.ONLINE:
                 device.status = DeviceStatus.WARNING
                 device.status_reason = f"HTTP {resp.status_code}"
+                from app.services.alert_service import notify_status_change
+                from app.models.alert import AlertSeverity
+                notify_status_change(db, device, AlertSeverity.WARNING, f"HTTP {resp.status_code}", metric_name="http_check")
 
         # Check SSL cert expiry for HTTPS URLs
         if url.startswith("https://"):
@@ -81,6 +84,9 @@ def _check_device_url(db, device: Device) -> None:
         if device.status == DeviceStatus.ONLINE:
             device.status = DeviceStatus.WARNING
             device.status_reason = "HTTP"
+            from app.services.alert_service import notify_status_change
+            from app.models.alert import AlertSeverity
+            notify_status_change(db, device, AlertSeverity.WARNING, "HTTP unreachable", metric_name="http_check")
 
 
 def _check_cert_expiry(device: Device, url: str) -> None:

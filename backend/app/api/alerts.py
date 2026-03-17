@@ -7,6 +7,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from sqlalchemy.orm import joinedload
+
 from app.database import get_db
 from app.models.user import User, UserRole
 from app.models.alert import Alert, AlertRule, AlertStatus, NotificationChannel
@@ -20,6 +22,13 @@ from app.schemas.alert import (
 router = APIRouter()
 
 
+def _alert_response(alert: Alert) -> AlertResponse:
+    resp = AlertResponse.model_validate(alert)
+    if alert.device:
+        resp.device_name = alert.device.name
+    return resp
+
+
 @router.get("/", response_model=AlertListResponse)
 async def list_alerts(
     page: int = Query(1, ge=1),
@@ -30,7 +39,7 @@ async def list_alerts(
     db: AsyncSession = Depends(get_db),
     _user: User = Depends(get_current_user),
 ):
-    query = select(Alert)
+    query = select(Alert).options(joinedload(Alert.device))
     count_query = select(func.count(Alert.id))
     if status_filter:
         query = query.where(Alert.status == status_filter)
@@ -45,10 +54,10 @@ async def list_alerts(
     total = (await db.execute(count_query)).scalar() or 0
     query = query.order_by(Alert.triggered_at.desc()).offset((page - 1) * per_page).limit(per_page)
     result = await db.execute(query)
-    alerts = result.scalars().all()
+    alerts = result.unique().scalars().all()
 
     return AlertListResponse(
-        items=[AlertResponse.model_validate(a) for a in alerts],
+        items=[_alert_response(a) for a in alerts],
         total=total,
         page=page,
         per_page=per_page,
@@ -62,11 +71,12 @@ async def active_alerts(
 ):
     result = await db.execute(
         select(Alert)
+        .options(joinedload(Alert.device))
         .where(Alert.status.in_([AlertStatus.ACTIVE, AlertStatus.ACKNOWLEDGED]))
         .order_by(Alert.triggered_at.desc())
         .limit(100)
     )
-    return [AlertResponse.model_validate(a) for a in result.scalars().all()]
+    return [_alert_response(a) for a in result.unique().scalars().all()]
 
 
 @router.post("/{alert_id}/ack", response_model=AlertResponse)
@@ -76,7 +86,7 @@ async def acknowledge_alert(
     user: User = Depends(require_role(UserRole.OPERATOR)),
 ):
     from datetime import datetime
-    alert = await db.get(Alert, alert_id)
+    alert = await db.get(Alert, alert_id, options=[joinedload(Alert.device)])
     if not alert:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Alert not found")
     if alert.status != AlertStatus.ACTIVE:
@@ -86,7 +96,7 @@ async def acknowledge_alert(
     alert.acknowledged_by = user.id
     await db.flush()
     await db.refresh(alert)
-    return AlertResponse.model_validate(alert)
+    return _alert_response(alert)
 
 
 @router.post("/{alert_id}/resolve", response_model=AlertResponse)
@@ -96,7 +106,7 @@ async def resolve_alert(
     _user: User = Depends(require_role(UserRole.OPERATOR)),
 ):
     from datetime import datetime
-    alert = await db.get(Alert, alert_id)
+    alert = await db.get(Alert, alert_id, options=[joinedload(Alert.device)])
     if not alert:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Alert not found")
     if alert.status == AlertStatus.RESOLVED:
@@ -105,7 +115,7 @@ async def resolve_alert(
     alert.resolved_at = datetime.utcnow()
     await db.flush()
     await db.refresh(alert)
-    return AlertResponse.model_validate(alert)
+    return _alert_response(alert)
 
 
 # --- Alert Rules ---

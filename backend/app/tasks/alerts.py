@@ -42,13 +42,14 @@ def process_alerts():
 
         # Send notifications for new alerts
         if all_new_alerts:
+            from app.services.alert_service import _dispatch_notification
             channels = db.execute(
                 select(NotificationChannel).where(NotificationChannel.enabled == True)  # noqa: E712
             ).scalars().all()
             for alert in all_new_alerts:
                 for channel in channels:
                     try:
-                        _send_notification(alert, channel)
+                        _dispatch_notification(alert, channel)
                     except Exception:
                         logger.exception("Failed to notify channel %s for alert %d", channel.name, alert.id)
             db.commit()
@@ -165,6 +166,30 @@ def _collect_device_metrics(device: Device, db=None) -> dict[str, float]:
                     metrics[metric_name] = float(row.value)
                 except (ValueError, TypeError):
                     pass
+
+        # Cross-check: if UPS reports on-battery but input voltage is normal,
+        # override the output status metric so alert rules don't false-trigger
+        if dtype == "ups":
+            output_status = metrics.get("upsBasicOutputStatus")
+            output_source = metrics.get("upsOutputSource")
+            if output_status == 3.0 or output_source == 5.0:
+                voltage_row = db.execute(
+                    select(SNMPData)
+                    .where(SNMPData.device_id == device.id, SNMPData.oid_name == "upsAdvInputLineVoltage")
+                    .order_by(SNMPData.timestamp.desc())
+                    .limit(1)
+                ).scalar_one_or_none()
+                if voltage_row:
+                    try:
+                        input_voltage = float(voltage_row.value)
+                        if input_voltage > 90:
+                            # Mains power present — override false on-battery status
+                            if output_status == 3.0:
+                                metrics["upsBasicOutputStatus"] = 2.0  # onLine
+                            if output_source == 5.0:
+                                metrics["upsOutputSource"] = 3.0  # normal
+                    except (ValueError, TypeError):
+                        pass
 
     return metrics
 
