@@ -152,8 +152,10 @@ async def update_rule(
     rule = await db.get(AlertRule, rule_id)
     if not rule:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Rule not found")
+    allowed_fields = {"name", "metric_name", "condition", "threshold", "severity", "device_type", "enabled"}
     for field, value in data.model_dump(exclude_unset=True).items():
-        setattr(rule, field, value)
+        if field in allowed_fields:
+            setattr(rule, field, value)
     await db.flush()
     await db.refresh(rule)
     return AlertRuleResponse.model_validate(rule)

@@ -41,6 +41,8 @@ class MonitoringSettings(BaseModel):
     disk_warning_percent: int
     disk_critical_percent: int
     dns_servers: str = ""
+    email_subject_down: str = ""
+    email_subject_up: str = ""
     email_template_down: str = ""
     email_template_up: str = ""
 
@@ -64,6 +66,8 @@ async def get_monitoring_settings(
         disk_warning_percent=settings.DISK_WARNING_PERCENT,
         disk_critical_percent=settings.DISK_CRITICAL_PERCENT,
         dns_servers=settings.DNS_SERVERS,
+        email_subject_down=settings.EMAIL_SUBJECT_DOWN,
+        email_subject_up=settings.EMAIL_SUBJECT_UP,
         email_template_down=settings.EMAIL_TEMPLATE_DOWN,
         email_template_up=settings.EMAIL_TEMPLATE_UP,
     )
@@ -89,6 +93,8 @@ async def update_monitoring_settings(
     settings.DISK_WARNING_PERCENT = data.disk_warning_percent
     settings.DISK_CRITICAL_PERCENT = data.disk_critical_percent
     settings.DNS_SERVERS = data.dns_servers
+    settings.EMAIL_SUBJECT_DOWN = data.email_subject_down
+    settings.EMAIL_SUBJECT_UP = data.email_subject_up
     settings.EMAIL_TEMPLATE_DOWN = data.email_template_down
     settings.EMAIL_TEMPLATE_UP = data.email_template_up
 
@@ -109,6 +115,8 @@ async def update_monitoring_settings(
         "DISK_WARNING_PERCENT": str(data.disk_warning_percent),
         "DISK_CRITICAL_PERCENT": str(data.disk_critical_percent),
         "DNS_SERVERS": data.dns_servers,
+        "EMAIL_SUBJECT_DOWN": data.email_subject_down,
+        "EMAIL_SUBJECT_UP": data.email_subject_up,
         "EMAIL_TEMPLATE_DOWN": data.email_template_down,
         "EMAIL_TEMPLATE_UP": data.email_template_up,
     })

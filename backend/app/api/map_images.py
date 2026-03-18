@@ -104,9 +104,9 @@ async def delete_map_image(
             f"Cannot delete: {ref_count} site(s) use this image. Remove from those sites first.",
         )
 
-    # Delete file
-    filepath = os.path.join(settings.UPLOAD_DIR, image.file_path)
-    if os.path.exists(filepath):
+    # Delete file (validate path is within UPLOAD_DIR)
+    filepath = os.path.abspath(os.path.join(settings.UPLOAD_DIR, image.file_path))
+    if filepath.startswith(os.path.abspath(settings.UPLOAD_DIR)) and os.path.exists(filepath):
         os.remove(filepath)
 
     await db.delete(image)

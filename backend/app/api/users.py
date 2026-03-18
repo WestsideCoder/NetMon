@@ -71,8 +71,10 @@ async def update_user(
     user = await db.get(User, user_id)
     if not user:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
+    allowed_fields = {"email", "full_name", "role", "is_active"}
     for field, value in data.model_dump(exclude_unset=True).items():
-        setattr(user, field, value)
+        if field in allowed_fields:
+            setattr(user, field, value)
     await db.flush()
     await db.refresh(user)
     return UserResponse.model_validate(user)

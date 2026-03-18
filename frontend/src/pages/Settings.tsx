@@ -23,6 +23,8 @@ interface MonitoringSettings {
   disk_warning_percent: number;
   disk_critical_percent: number;
   dns_servers: string;
+  email_subject_down: string;
+  email_subject_up: string;
   email_template_down: string;
   email_template_up: string;
 }
@@ -647,13 +649,25 @@ export default function Settings() {
                     </p>
                     <div className="space-y-4">
                       <div>
-                        <label className={labelClass}>Device Down Template</label>
+                        <label className={labelClass}>Device Down — Subject</label>
+                        <input type="text" className={inputClass} value={mon.email_subject_down}
+                          disabled={!isAdmin}
+                          onChange={(e) => setMon({ ...mon, email_subject_down: e.target.value })} />
+                      </div>
+                      <div>
+                        <label className={labelClass}>Device Down — Body</label>
                         <textarea rows={6} className={inputClass} value={mon.email_template_down}
                           disabled={!isAdmin}
                           onChange={(e) => setMon({ ...mon, email_template_down: e.target.value })} />
                       </div>
                       <div>
-                        <label className={labelClass}>Device Recovery Template</label>
+                        <label className={labelClass}>Device Recovery — Subject</label>
+                        <input type="text" className={inputClass} value={mon.email_subject_up}
+                          disabled={!isAdmin}
+                          onChange={(e) => setMon({ ...mon, email_subject_up: e.target.value })} />
+                      </div>
+                      <div>
+                        <label className={labelClass}>Device Recovery — Body</label>
                         <textarea rows={6} className={inputClass} value={mon.email_template_up}
                           disabled={!isAdmin}
                           onChange={(e) => setMon({ ...mon, email_template_up: e.target.value })} />

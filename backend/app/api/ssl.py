@@ -353,6 +353,10 @@ async def complete_csr(
 
     # Save the signed cert next to the existing key
     cert_path = db_cert.csr_path.replace("_csr.pem", "_cert.pem")
+    # Validate path is within SSL store directory
+    ssl_store = os.path.abspath(ssl_service.SSL_STORE_DIR)
+    if not os.path.abspath(cert_path).startswith(ssl_store):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid certificate path")
     with open(cert_path, "wb") as f:
         f.write(cert_data)
 

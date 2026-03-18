@@ -79,7 +79,9 @@ class Settings(BaseSettings):
     RECOVERY_PINGS: int = 3  # consecutive successes before marking device online
     RECOVERY_EMAIL_ENABLED: bool = True  # send email when device recovers
 
-    # Email templates (placeholders: {device}, {ip}, {type}, {site}, {reason}, {time})
+    # Email templates (placeholders: {device}, {ip}, {type}, {site}, {reason}, {severity}, {time})
+    EMAIL_SUBJECT_DOWN: str = "[NetMon] {severity}: {device} — {reason}"
+    EMAIL_SUBJECT_UP: str = "[NetMon] RECOVERED: {device} is back online"
     EMAIL_TEMPLATE_DOWN: str = (
         "ALERT: {device} is {severity}\n\n"
         "Device: {device}\n"

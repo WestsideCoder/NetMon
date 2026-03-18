@@ -225,9 +225,11 @@ def _send_email(alert: Alert, config: dict) -> None:
             f"Severity: {alert.severity.value}\n"
             f"Triggered: {alert.triggered_at}"
         )
-        msg["Subject"] = f"[NetMon] {alert.severity.value.upper()}: {alert.title}"
-        msg["From"] = str(smtp.SMTP_FROM)
-        msg["To"] = to_addr
+        def _sanitize(v: str) -> str:
+            return v.replace("\r", "").replace("\n", "").strip()[:200]
+        msg["Subject"] = _sanitize(f"[NetMon] {alert.severity.value.upper()}: {alert.title}")
+        msg["From"] = _sanitize(str(smtp.SMTP_FROM))
+        msg["To"] = _sanitize(to_addr)
 
         if not smtp.SMTP_HOST:
             logger.warning("SMTP not configured, skipping email for alert %d", alert.id)

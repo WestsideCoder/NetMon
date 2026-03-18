@@ -51,7 +51,9 @@ class LDAPAuthenticator:
                 password=bind_pw,
                 auto_bind=True,
             )
-            search_filter = settings.LDAP_USER_FILTER.replace("{username}", username)
+            # Escape LDAP special characters to prevent injection
+            safe_username = username.replace("\\", "\\5c").replace("*", "\\2a").replace("(", "\\28").replace(")", "\\29").replace("\x00", "\\00")
+            search_filter = settings.LDAP_USER_FILTER.replace("{username}", safe_username)
             conn.search(
                 settings.LDAP_BASE_DN,
                 search_filter,

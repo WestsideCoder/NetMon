@@ -38,8 +38,12 @@ COPY krb5.conf /etc/krb5.conf
 # Copy application code
 COPY . .
 
-# Create uploads directory
-RUN mkdir -p /app/uploads
+# Create directories and non-root user
+RUN mkdir -p /app/uploads /app/ssl_store \
+    && useradd -m -u 1000 netmon \
+    && chown -R netmon:netmon /app
+
+USER netmon
 
 # Expose port
 EXPOSE 8000

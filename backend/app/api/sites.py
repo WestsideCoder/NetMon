@@ -29,6 +29,20 @@ ALLOWED_IMAGE_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp"}
 MAX_IMAGE_SIZE = 10 * 1024 * 1024  # 10MB
 
 
+def _safe_upload_path(url: str) -> str | None:
+    """Resolve an upload URL to a safe filesystem path within UPLOAD_DIR."""
+    if not url:
+        return None
+    # Strip /uploads/ prefix to get relative path
+    rel = url.lstrip("/")
+    if rel.startswith("uploads/"):
+        rel = rel[len("uploads/"):]
+    full = os.path.abspath(os.path.join(settings.UPLOAD_DIR, rel))
+    if not full.startswith(os.path.abspath(settings.UPLOAD_DIR)):
+        return None  # path traversal attempt
+    return full
+
+
 def _safe_image_ext(filename: str | None, content_type: str | None) -> str:
     """Extract and validate image file extension. Falls back to content_type."""
     if filename and "." in filename:
@@ -257,8 +271,8 @@ async def upload_map_image(
 
     # Delete old image if exists
     if site.map_image_url:
-        old_path = os.path.join(settings.UPLOAD_DIR, site.map_image_url.lstrip("/uploads/"))
-        if os.path.exists(old_path):
+        old_path = _safe_upload_path(site.map_image_url)
+        if old_path and os.path.exists(old_path):
             os.remove(old_path)
 
     # Save new image
@@ -289,8 +303,8 @@ async def delete_map_image(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Site not found")
 
     if site.map_image_url:
-        old_path = os.path.join(settings.UPLOAD_DIR, site.map_image_url.lstrip("/uploads/"))
-        if os.path.exists(old_path):
+        old_path = _safe_upload_path(site.map_image_url)
+        if old_path and os.path.exists(old_path):
             os.remove(old_path)
         site.map_image_url = None
         site.map_image_id = None

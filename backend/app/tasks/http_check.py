@@ -48,10 +48,38 @@ def check_http_endpoints():
         db.close()
 
 
+def _is_safe_url(url: str) -> bool:
+    """Block requests to internal/metadata endpoints."""
+    from urllib.parse import urlparse
+    import ipaddress
+    try:
+        parsed = urlparse(url)
+        host = parsed.hostname or ""
+        if host in ("localhost", "127.0.0.1", "::1", "0.0.0.0", "metadata.google.internal"):
+            return False
+        # Block link-local / metadata IPs
+        try:
+            ip = ipaddress.ip_address(host)
+            if ip.is_loopback or ip.is_link_local or ip.is_reserved:
+                return False
+            # Block AWS/GCP/Azure metadata
+            if str(ip) in ("169.254.169.254", "100.100.100.200"):
+                return False
+        except ValueError:
+            pass  # hostname, not IP — OK
+        return True
+    except Exception:
+        return False
+
+
 def _check_device_url(db, device: Device) -> None:
     """Check a single device's HTTP URL."""
     url = device.http_url
     if not url:
+        return
+
+    if not _is_safe_url(url):
+        logger.warning("Blocked unsafe HTTP check URL for %s: %s", device.name, url)
         return
 
     start = time.monotonic()

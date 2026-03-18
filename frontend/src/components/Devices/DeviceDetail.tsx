@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { useState } from 'react';
-import { Pencil, Play, Check, X, Loader2 } from 'lucide-react';
+import { Pencil, Play, Check, X, Loader2, Wrench } from 'lucide-react';
 import StatusBadge from '../Common/StatusBadge';
 import type { Device } from '../../types';
 import { formatRelative } from '../../utils/date';
@@ -25,6 +25,18 @@ export default function DeviceDetail({ device, onEdit, onReload }: Props) {
   const { canEdit } = useRole();
   const [testing, setTesting] = useState(false);
   const [testResults, setTestResults] = useState<TestResults | null>(null);
+  const [maintenanceMode, setMaintenanceMode] = useState(device.maintenance_mode);
+  const [togglingMaint, setTogglingMaint] = useState(false);
+
+  const toggleMaintenance = async () => {
+    setTogglingMaint(true);
+    try {
+      await api.put(`/api/devices/${device.id}`, { maintenance_mode: !maintenanceMode });
+      setMaintenanceMode(!maintenanceMode);
+      onReload?.();
+    } catch { /* ignore */ }
+    setTogglingMaint(false);
+  };
 
   const handleTest = async () => {
     setTesting(true);
@@ -53,6 +65,20 @@ export default function DeviceDetail({ device, onEdit, onReload }: Props) {
         <div className="flex items-center gap-3">
           {canEdit && (
             <button
+              onClick={toggleMaintenance}
+              disabled={togglingMaint}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg disabled:opacity-50 ${
+                maintenanceMode
+                  ? 'bg-blue-600 text-white hover:bg-blue-700'
+                  : 'border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+              }`}
+            >
+              <Wrench className="h-4 w-4" />
+              {maintenanceMode ? 'In Maintenance' : 'Maintenance'}
+            </button>
+          )}
+          {canEdit && (
+            <button
               onClick={handleTest}
               disabled={testing}
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50"
@@ -71,7 +97,12 @@ export default function DeviceDetail({ device, onEdit, onReload }: Props) {
             </button>
           )}
           <StatusBadge status={device.status} />
-          {device.status_reason && device.status !== 'online' && (
+          {maintenanceMode && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+              <Wrench className="h-3 w-3" /> Maintenance
+            </span>
+          )}
+          {device.status_reason && device.status !== 'online' && !maintenanceMode && (
             <span className="text-xs text-gray-500 dark:text-gray-400">{device.status_reason}</span>
           )}
         </div>

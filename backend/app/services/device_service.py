@@ -58,13 +58,14 @@ async def get_devices(
     total_result = await db.execute(count_query)
     total = total_result.scalar() or 0
 
-    status_order = case(
+    sort_order = case(
         (Device.status == 'offline', 0),
         (Device.status == 'warning', 1),
-        (Device.status == 'online', 2),
-        else_=3,
+        (Device.maintenance_mode == True, 2),  # noqa: E712
+        (Device.status == 'online', 3),
+        else_=4,
     )
-    query = query.options(joinedload(Device.site)).order_by(status_order, Device.name).offset((page - 1) * per_page).limit(per_page)
+    query = query.options(joinedload(Device.site)).order_by(sort_order, Device.name).offset((page - 1) * per_page).limit(per_page)
     result = await db.execute(query)
     devices = result.scalars().unique().all()
 
@@ -100,9 +101,36 @@ async def update_device(
     device = await get_device(db, device_id)
     if not device:
         return None
-    for field, value in data.model_dump(exclude_unset=True).items():
-        setattr(device, field, value)
+    updates = data.model_dump(exclude_unset=True)
+    entering_maintenance = updates.get('maintenance_mode') is True and not device.maintenance_mode
+    allowed_fields = {
+        "name", "ip_address", "device_type", "site_id", "vlan",
+        "snmp_enabled", "snmp_credential_id", "snmp_template_id",
+        "http_url", "http_expected_status", "ntp_enabled", "web_check_enabled",
+        "maintenance_mode", "maintenance_until", "notes", "map_x", "map_y",
+    }
+    for field, value in updates.items():
+        if field in allowed_fields:
+            setattr(device, field, value)
     device.updated_at = datetime.utcnow()
+
+    # When entering maintenance: resolve active alerts and clear status
+    if entering_maintenance:
+        from app.models.alert import Alert, AlertStatus
+        active_alerts = (await db.execute(
+            select(Alert).where(
+                Alert.device_id == device_id,
+                Alert.status.in_([AlertStatus.ACTIVE, AlertStatus.ACKNOWLEDGED]),
+            )
+        )).scalars().all()
+        for alert in active_alerts:
+            alert.status = AlertStatus.RESOLVED
+            alert.resolved_at = datetime.utcnow()
+        device.status = DeviceStatus.ONLINE
+        device.status_reason = None
+        device.consecutive_failures = 0
+        device.consecutive_successes = 0
+
     await db.flush()
     # Re-fetch with site relationship eagerly loaded
     result = await db.execute(
@@ -141,8 +169,27 @@ async def toggle_maintenance(
     device = await get_device(db, device_id)
     if not device:
         return None
-    device.maintenance_mode = not device.maintenance_mode
-    device.maintenance_until = until if device.maintenance_mode else None
+    entering = not device.maintenance_mode
+    device.maintenance_mode = entering
+    device.maintenance_until = until if entering else None
+
+    if entering:
+        # Resolve active alerts and clear status
+        from app.models.alert import Alert, AlertStatus as AStatus
+        active_alerts = (await db.execute(
+            select(Alert).where(
+                Alert.device_id == device_id,
+                Alert.status.in_([AStatus.ACTIVE, AStatus.ACKNOWLEDGED]),
+            )
+        )).scalars().all()
+        for alert in active_alerts:
+            alert.status = AStatus.RESOLVED
+            alert.resolved_at = datetime.utcnow()
+        device.status = DeviceStatus.ONLINE
+        device.status_reason = None
+        device.consecutive_failures = 0
+        device.consecutive_successes = 0
+
     await db.flush()
     # Re-fetch with site relationship eagerly loaded
     result = await db.execute(

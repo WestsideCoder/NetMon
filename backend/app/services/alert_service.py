@@ -181,6 +181,11 @@ def _maybe_clear_device_status(db: Session, device_id: int) -> None:
             db.flush()
 
 
+def _sanitize_header(value: str) -> str:
+    """Remove newlines and control chars to prevent email header injection."""
+    return value.replace("\r", "").replace("\n", "").strip()[:200]
+
+
 def _device_details(device: Device) -> dict:
     """Extract device details for email content."""
     site_name = ""
@@ -326,9 +331,13 @@ def _send_recovery_email(device: Device, config: dict) -> None:
     )
     to_addr = config.get("to", smtp["from_addr"])
     msg = MIMEText(body)
-    msg["Subject"] = f"[NetMon] RECOVERED: {device.name} is back online"
-    msg["From"] = smtp["from_addr"]
-    msg["To"] = to_addr
+    try:
+        subject = fresh.EMAIL_SUBJECT_UP.format(**template_vars)
+    except (KeyError, IndexError):
+        subject = f"[NetMon] RECOVERED: {device.name} is back online"
+    msg["Subject"] = _sanitize_header(subject)
+    msg["From"] = _sanitize_header(smtp["from_addr"])
+    msg["To"] = _sanitize_header(to_addr)
 
     if not smtp["host"]:
         logger.warning("SMTP not configured, skipping recovery email for: %s", device.name)
@@ -378,17 +387,33 @@ def _send_email_notification(alert: Alert, config: dict) -> None:
     """Send email notification."""
     import smtplib
     from email.mime.text import MIMEText
+    from app.config import Settings
 
     smtp = _load_smtp_settings()
+    fresh = Settings()
     to_addr = config.get("to", smtp["from_addr"])
     msg = MIMEText(
         f"Alert: {alert.title}\n\n{alert.message}\n\n"
         f"Severity: {alert.severity.value}\n"
         f"Triggered: {alert.triggered_at}"
     )
-    msg["Subject"] = f"[NetMon] {alert.severity.value.upper()}: {alert.title}"
-    msg["From"] = smtp["from_addr"]
-    msg["To"] = to_addr
+    # Build subject from template
+    subject_template = fresh.EMAIL_SUBJECT_DOWN
+    try:
+        # Extract device name from alert title (format: "device_name: reason")
+        parts = alert.title.split(": ", 1)
+        device_name = parts[0] if parts else alert.title
+        reason = parts[1] if len(parts) > 1 else alert.metric_value or ""
+        subject = subject_template.format(
+            device=device_name, severity=alert.severity.value.upper(),
+            reason=reason, ip="", type="", site="",
+            time=alert.triggered_at.strftime("%Y-%m-%d %H:%M:%S UTC") if alert.triggered_at else "",
+        )
+    except (KeyError, IndexError):
+        subject = f"[NetMon] {alert.severity.value.upper()}: {alert.title}"
+    msg["Subject"] = _sanitize_header(subject)
+    msg["From"] = _sanitize_header(smtp["from_addr"])
+    msg["To"] = _sanitize_header(to_addr)
 
     if not smtp["host"]:
         logger.warning("SMTP not configured, skipping email for: %s", alert.title)
