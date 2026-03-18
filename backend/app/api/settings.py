@@ -32,6 +32,8 @@ class MonitoringSettings(BaseModel):
     http_check_interval: int
     missed_pings_warning: int
     missed_pings_critical: int
+    recovery_pings: int = 3
+    recovery_email_enabled: bool = True
     cpu_warning_percent: int
     cpu_critical_percent: int
     memory_warning_percent: int
@@ -39,6 +41,8 @@ class MonitoringSettings(BaseModel):
     disk_warning_percent: int
     disk_critical_percent: int
     dns_servers: str = ""
+    email_template_down: str = ""
+    email_template_up: str = ""
 
 
 @router.get("/monitoring", response_model=MonitoringSettings)
@@ -51,6 +55,8 @@ async def get_monitoring_settings(
         http_check_interval=settings.HTTP_CHECK_INTERVAL,
         missed_pings_warning=settings.MISSED_PINGS_WARNING,
         missed_pings_critical=settings.MISSED_PINGS_CRITICAL,
+        recovery_pings=settings.RECOVERY_PINGS,
+        recovery_email_enabled=settings.RECOVERY_EMAIL_ENABLED,
         cpu_warning_percent=settings.CPU_WARNING_PERCENT,
         cpu_critical_percent=settings.CPU_CRITICAL_PERCENT,
         memory_warning_percent=settings.MEMORY_WARNING_PERCENT,
@@ -58,6 +64,8 @@ async def get_monitoring_settings(
         disk_warning_percent=settings.DISK_WARNING_PERCENT,
         disk_critical_percent=settings.DISK_CRITICAL_PERCENT,
         dns_servers=settings.DNS_SERVERS,
+        email_template_down=settings.EMAIL_TEMPLATE_DOWN,
+        email_template_up=settings.EMAIL_TEMPLATE_UP,
     )
 
 
@@ -72,6 +80,8 @@ async def update_monitoring_settings(
     settings.HTTP_CHECK_INTERVAL = data.http_check_interval
     settings.MISSED_PINGS_WARNING = data.missed_pings_warning
     settings.MISSED_PINGS_CRITICAL = data.missed_pings_critical
+    settings.RECOVERY_PINGS = data.recovery_pings
+    settings.RECOVERY_EMAIL_ENABLED = data.recovery_email_enabled
     settings.CPU_WARNING_PERCENT = data.cpu_warning_percent
     settings.CPU_CRITICAL_PERCENT = data.cpu_critical_percent
     settings.MEMORY_WARNING_PERCENT = data.memory_warning_percent
@@ -79,6 +89,8 @@ async def update_monitoring_settings(
     settings.DISK_WARNING_PERCENT = data.disk_warning_percent
     settings.DISK_CRITICAL_PERCENT = data.disk_critical_percent
     settings.DNS_SERVERS = data.dns_servers
+    settings.EMAIL_TEMPLATE_DOWN = data.email_template_down
+    settings.EMAIL_TEMPLATE_UP = data.email_template_up
 
     # Persist to .env so they survive restarts
     env_path = "/app/.env"
@@ -88,6 +100,8 @@ async def update_monitoring_settings(
         "HTTP_CHECK_INTERVAL": str(data.http_check_interval),
         "MISSED_PINGS_WARNING": str(data.missed_pings_warning),
         "MISSED_PINGS_CRITICAL": str(data.missed_pings_critical),
+        "RECOVERY_PINGS": str(data.recovery_pings),
+        "RECOVERY_EMAIL_ENABLED": str(data.recovery_email_enabled).lower(),
         "CPU_WARNING_PERCENT": str(data.cpu_warning_percent),
         "CPU_CRITICAL_PERCENT": str(data.cpu_critical_percent),
         "MEMORY_WARNING_PERCENT": str(data.memory_warning_percent),
@@ -95,6 +109,8 @@ async def update_monitoring_settings(
         "DISK_WARNING_PERCENT": str(data.disk_warning_percent),
         "DISK_CRITICAL_PERCENT": str(data.disk_critical_percent),
         "DNS_SERVERS": data.dns_servers,
+        "EMAIL_TEMPLATE_DOWN": data.email_template_down,
+        "EMAIL_TEMPLATE_UP": data.email_template_up,
     })
 
     return data

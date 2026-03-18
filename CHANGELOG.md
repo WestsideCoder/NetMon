@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.9.0.5 (2026-03-18)
+
+### Added
+- **Recovery email notifications** — configurable email alert when a device comes back online after consecutive successful pings (default: 3 pings required before recovery)
+- **Recovery settings in UI** — Settings > Monitoring now has a "Recovery Settings" section with configurable "Pings Before Recovery" count and a toggle to enable/disable recovery emails
+- **Email templates** — customizable email body templates for both down alerts and recovery notifications in Settings > Monitoring, with placeholders for `{device}`, `{ip}`, `{type}`, `{site}`, `{reason}`, `{severity}`, `{time}`, and `{recovery_pings}`
+- **Device details in alert emails** — all alert and recovery emails now include device name, IP address, device type, and site name
+- **Sites page auto-refresh** — Sites page now auto-refreshes every 30 seconds and on WebSocket updates, matching Dashboard and Devices page behavior
+- **Ping task WebSocket broadcast** — ping task now publishes a `ping_update` message over WebSocket after each cycle so all pages update immediately
+- **Bulk site creation script** — `scripts/bulk_scan.sh` for batch sub-site creation with network scanning and device import
+
+### Fixed
+- **Alert emails not sending** — fixed SMTP relay without authentication being treated as "not configured"; emails now send correctly on no-auth relays (port 25)
+- **Celery worker stale SMTP config** — email notification function now reloads SMTP settings from `.env` on each send, so celery workers pick up config changes without restart
+- **Duplicate SMTP bug in alerts task** — fixed the same no-auth SMTP issue in the `alerts.py` task's `_send_email` function
+- **Recovery flapping** — devices no longer immediately flip to ONLINE on first successful ping; they must pass the configured number of consecutive successes (default 3) before being marked recovered
+
+### Changed
+- **Sites page layout** — site hierarchy and map panel now scroll independently; header banner reduced for more map space
+- **`consecutive_successes` tracking** — new database column on devices table tracks successful pings during recovery to prevent premature ONLINE status
+
 ## v0.9.0.4 (2026-03-17)
 
 ### Added

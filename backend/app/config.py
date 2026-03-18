@@ -13,7 +13,7 @@ class Settings(BaseSettings):
 
     # Application
     APP_NAME: str = "NetMon (Beta)"
-    VERSION: str = "0.9.0.4"
+    VERSION: str = "0.9.0.5"
     ENVIRONMENT: str = "development"
     DEBUG: bool = False
 
@@ -74,6 +74,30 @@ class Settings(BaseSettings):
     MEMORY_CRITICAL_PERCENT: int = 95
     DISK_WARNING_PERCENT: int = 90
     DISK_CRITICAL_PERCENT: int = 95
+
+    # Recovery
+    RECOVERY_PINGS: int = 3  # consecutive successes before marking device online
+    RECOVERY_EMAIL_ENABLED: bool = True  # send email when device recovers
+
+    # Email templates (placeholders: {device}, {ip}, {type}, {site}, {reason}, {time})
+    EMAIL_TEMPLATE_DOWN: str = (
+        "ALERT: {device} is {severity}\n\n"
+        "Device: {device}\n"
+        "IP Address: {ip}\n"
+        "Type: {type}\n"
+        "Site: {site}\n"
+        "Reason: {reason}\n"
+        "Time: {time}"
+    )
+    EMAIL_TEMPLATE_UP: str = (
+        "RECOVERED: {device} is back online\n\n"
+        "Device: {device}\n"
+        "IP Address: {ip}\n"
+        "Type: {type}\n"
+        "Site: {site}\n"
+        "Recovered after {recovery_pings} consecutive successful pings.\n"
+        "Time: {time}"
+    )
 
     # DNS servers for reverse lookups (comma-separated)
     DNS_SERVERS: str = ""

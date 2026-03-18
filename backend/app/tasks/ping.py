@@ -9,6 +9,7 @@ import subprocess
 from datetime import datetime
 
 from sqlalchemy import select, func
+from sqlalchemy.orm import joinedload
 
 from app.tasks import celery_app
 from app.database import SyncSessionLocal
@@ -210,10 +211,10 @@ def ping_all_devices():
     db = SyncSessionLocal()
     try:
         devices = db.execute(
-            select(Device).where(
+            select(Device).options(joinedload(Device.site)).where(
                 Device.maintenance_mode == False  # noqa: E712
             )
-        ).scalars().all()
+        ).scalars().unique().all()
 
         if not devices:
             return {"pinged": 0}
@@ -247,6 +248,20 @@ def ping_all_devices():
 
         db.commit()
         logger.info("Pinged %d devices", total_updated)
+
+        # Broadcast ping complete so frontends refresh
+        try:
+            import json
+            from app.core.celery_app import celery_app as _capp
+            r = _capp.backend.client if hasattr(_capp.backend, 'client') else None
+            if r is None:
+                import redis
+                from app.config import settings as _s
+                r = redis.Redis.from_url(_s.REDIS_URL)
+            r.publish("ws_broadcast", json.dumps({"type": "ping_update", "pinged": total_updated}))
+        except Exception:
+            logger.debug("Failed to publish ping_update to WS", exc_info=True)
+
         return {"pinged": total_updated}
     except Exception:
         db.rollback()
@@ -269,31 +284,51 @@ def _update_device_status(db, device: Device, ping_result: dict) -> None:
     if ping_result["alive"]:
         device.response_time = ping_result["rtt"]
         device.last_seen = now
-        device.consecutive_failures = 0
         device.successful_checks += 1
-        # Auto-resolve ping alerts so they re-fire if the issue recurs
-        ping_alerts = db.execute(
-            select(Alert).where(
-                Alert.device_id == device.id,
-                Alert.status.in_([AlertStatus.ACTIVE, AlertStatus.ACKNOWLEDGED]),
-                Alert.metric_name.in_(["ping_offline", "consecutive_failures"]),
-            )
-        ).scalars().all()
-        for alert in ping_alerts:
-            alert.status = AlertStatus.RESOLVED
-            alert.resolved_at = now
-        # Don't reset to ONLINE if there are active (non-acknowledged) alerts
-        active_alerts = db.execute(
-            select(func.count(Alert.id)).where(
-                Alert.device_id == device.id,
-                Alert.status == AlertStatus.ACTIVE,
-            )
-        ).scalar() or 0
-        if active_alerts == 0:
-            device.status = DeviceStatus.ONLINE
-            device.status_reason = None
+        was_down = prev_status in (DeviceStatus.OFFLINE, DeviceStatus.WARNING)
+
+        if was_down:
+            # Track consecutive successes for recovery confirmation
+            device.consecutive_successes = getattr(device, 'consecutive_successes', 0) + 1
+
+            recovery_pings = settings.RECOVERY_PINGS or 3
+            if device.consecutive_successes >= recovery_pings:
+                # Confirmed recovery — resolve alerts and go online
+                device.consecutive_failures = 0
+                device.consecutive_successes = 0
+                ping_alerts = db.execute(
+                    select(Alert).where(
+                        Alert.device_id == device.id,
+                        Alert.status.in_([AlertStatus.ACTIVE, AlertStatus.ACKNOWLEDGED]),
+                        Alert.metric_name.in_(["ping_offline", "consecutive_failures"]),
+                    )
+                ).scalars().all()
+                for alert in ping_alerts:
+                    alert.status = AlertStatus.RESOLVED
+                    alert.resolved_at = now
+
+                active_alerts = db.execute(
+                    select(func.count(Alert.id)).where(
+                        Alert.device_id == device.id,
+                        Alert.status == AlertStatus.ACTIVE,
+                    )
+                ).scalar() or 0
+                if active_alerts == 0:
+                    device.status = DeviceStatus.ONLINE
+                    device.status_reason = None
+
+                # Send recovery notification if enabled
+                if settings.RECOVERY_EMAIL_ENABLED:
+                    from app.services.alert_service import notify_recovery
+                    notify_recovery(db, device)
+            # else: still recovering, keep current WARNING/OFFLINE status
+        else:
+            # Already online — reset counters
+            device.consecutive_failures = 0
+            device.consecutive_successes = 0
     else:
         device.consecutive_failures += 1
+        device.consecutive_successes = 0
         device.response_time = None
         if device.consecutive_failures >= settings.MISSED_PINGS_CRITICAL:
             device.status = DeviceStatus.OFFLINE

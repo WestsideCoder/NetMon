@@ -26,8 +26,8 @@ def process_alerts():
     db = SyncSessionLocal()
     try:
         devices = db.execute(
-            select(Device).where(Device.maintenance_mode == False)  # noqa: E712
-        ).scalars().all()
+            select(Device).options(joinedload(Device.site)).where(Device.maintenance_mode == False)  # noqa: E712
+        ).scalars().unique().all()
 
         new_alert_count = 0
         all_new_alerts = []
@@ -216,26 +216,30 @@ def _send_email(alert: Alert, config: dict) -> None:
     try:
         import smtplib
         from email.mime.text import MIMEText
-        from app.config import settings
+        from app.config import Settings
 
-        to_addr = config.get("to", settings.SMTP_FROM)
+        smtp = Settings()
+        to_addr = config.get("to", str(smtp.SMTP_FROM))
         msg = MIMEText(
             f"Alert: {alert.title}\n\n{alert.message}\n\n"
             f"Severity: {alert.severity.value}\n"
             f"Triggered: {alert.triggered_at}"
         )
         msg["Subject"] = f"[NetMon] {alert.severity.value.upper()}: {alert.title}"
-        msg["From"] = str(settings.SMTP_FROM)
+        msg["From"] = str(smtp.SMTP_FROM)
         msg["To"] = to_addr
 
-        if settings.SMTP_USERNAME and settings.SMTP_PASSWORD:
-            with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
-                server.starttls()
-                server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
-                server.send_message(msg)
-            logger.info("Email sent for alert %d", alert.id)
-        else:
+        if not smtp.SMTP_HOST:
             logger.warning("SMTP not configured, skipping email for alert %d", alert.id)
+            return
+
+        with smtplib.SMTP(smtp.SMTP_HOST, smtp.SMTP_PORT) as server:
+            if smtp.SMTP_USE_TLS:
+                server.starttls()
+            if smtp.SMTP_USERNAME and smtp.SMTP_PASSWORD:
+                server.login(smtp.SMTP_USERNAME, smtp.SMTP_PASSWORD)
+            server.send_message(msg)
+        logger.info("Email sent for alert %d", alert.id)
     except Exception:
         logger.exception("Failed to send email for alert %d", alert.id)
 

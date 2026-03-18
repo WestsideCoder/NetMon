@@ -47,14 +47,20 @@ def evaluate_thresholds(
             continue
         if op(value, rule.threshold):
             if not _is_duplicate(db, device.id, rule.id):
+                info = _device_details(device)
                 alert = Alert(
                     device_id=device.id,
                     rule_id=rule.id,
                     severity=rule.severity,
                     status=AlertStatus.ACTIVE,
                     title=f"{rule.name}: {rule.metric_name} {rule.condition} {rule.threshold}",
-                    message=f"Device {device.name} ({device.ip_address}): "
-                            f"{rule.metric_name}={value} {rule.condition} {rule.threshold}",
+                    message=(
+                        f"Device: {device.name}\n"
+                        f"IP Address: {device.ip_address}\n"
+                        f"Type: {info['type']}\n"
+                        f"Site: {info['site']}\n"
+                        f"Metric: {rule.metric_name}={value} {rule.condition} {rule.threshold}"
+                    ),
                     metric_name=rule.metric_name,
                     metric_value=str(value),
                 )
@@ -175,6 +181,18 @@ def _maybe_clear_device_status(db: Session, device_id: int) -> None:
             db.flush()
 
 
+def _device_details(device: Device) -> dict:
+    """Extract device details for email content."""
+    site_name = ""
+    try:
+        if device.site:
+            site_name = device.site.name
+    except Exception:
+        pass
+    dev_type = device.device_type.value if device.device_type else "unknown"
+    return {"site": site_name, "type": dev_type}
+
+
 def notify_status_change(
     db: Session,
     device: Device,
@@ -198,12 +216,25 @@ def notify_status_change(
         )
     ).scalar() or 0
 
+    info = _device_details(device)
+    from app.config import Settings
+    fresh = Settings()
+    template_vars = {
+        "device": device.name, "ip": device.ip_address,
+        "type": info["type"], "site": info["site"],
+        "reason": reason, "severity": severity.value.upper(),
+        "time": now.strftime("%Y-%m-%d %H:%M:%S UTC"),
+    }
+    body = fresh.EMAIL_TEMPLATE_DOWN.format(**template_vars) if fresh.EMAIL_TEMPLATE_DOWN else (
+        f"Device: {device.name}\nIP Address: {device.ip_address}\n"
+        f"Type: {info['type']}\nSite: {info['site']}\nReason: {reason}"
+    )
     alert = Alert(
         device_id=device.id,
         severity=severity,
         status=AlertStatus.ACTIVE,
         title=f"{device.name}: {reason}",
-        message=f"Device {device.name} ({device.ip_address}) — {reason}",
+        message=body,
         metric_name=metric_name,
         metric_value=reason,
         triggered_at=now,
@@ -227,6 +258,91 @@ def notify_status_change(
             )
 
 
+def notify_recovery(
+    db: Session,
+    device: Device,
+) -> None:
+    """Send recovery notifications when a device comes back online after 3 consecutive successes."""
+    channels = db.execute(
+        select(NotificationChannel).where(NotificationChannel.enabled == True)  # noqa: E712
+    ).scalars().all()
+
+    for channel in channels:
+        try:
+            _dispatch_recovery(device, channel)
+        except Exception:
+            logger.exception(
+                "Failed to send recovery notification via %s for device %s",
+                channel.name, device.name,
+            )
+
+
+def _dispatch_recovery(device: Device, channel: NotificationChannel) -> None:
+    """Send a recovery notification via the given channel."""
+    try:
+        config = json.loads(channel.config) if channel.config else {}
+    except json.JSONDecodeError:
+        config = {}
+
+    if channel.channel_type == "email":
+        _send_recovery_email(device, config)
+    elif channel.channel_type in ("webhook", "slack"):
+        import httpx
+        url = config.get("url")
+        if not url:
+            return
+        payload = {
+            "text": f"[RECOVERED] {device.name} ({device.ip_address}) is back online",
+            "severity": "info",
+            "message": f"Device {device.name} ({device.ip_address}) has recovered and is back online.",
+            "recovered_at": datetime.utcnow().isoformat(),
+        }
+        with httpx.Client(timeout=10) as client:
+            client.post(url, json=payload)
+        logger.info("Recovery webhook sent for device: %s", device.name)
+
+
+def _send_recovery_email(device: Device, config: dict) -> None:
+    """Send recovery email notification."""
+    import smtplib
+    from email.mime.text import MIMEText
+
+    smtp = _load_smtp_settings()
+    info = _device_details(device)
+    from app.config import Settings
+    fresh = Settings()
+    now = datetime.utcnow()
+    template_vars = {
+        "device": device.name, "ip": device.ip_address,
+        "type": info["type"], "site": info["site"],
+        "recovery_pings": str(fresh.RECOVERY_PINGS),
+        "time": now.strftime("%Y-%m-%d %H:%M:%S UTC"),
+    }
+    body = fresh.EMAIL_TEMPLATE_UP.format(**template_vars) if fresh.EMAIL_TEMPLATE_UP else (
+        f"Device {device.name} ({device.ip_address}) has recovered and is back online.\n"
+        f"Type: {info['type']}\nSite: {info['site']}\n"
+        f"Recovered after {fresh.RECOVERY_PINGS} consecutive successful pings.\n"
+        f"Time: {now.strftime('%Y-%m-%d %H:%M:%S UTC')}"
+    )
+    to_addr = config.get("to", smtp["from_addr"])
+    msg = MIMEText(body)
+    msg["Subject"] = f"[NetMon] RECOVERED: {device.name} is back online"
+    msg["From"] = smtp["from_addr"]
+    msg["To"] = to_addr
+
+    if not smtp["host"]:
+        logger.warning("SMTP not configured, skipping recovery email for: %s", device.name)
+        return
+
+    with smtplib.SMTP(smtp["host"], smtp["port"]) as server:
+        if smtp["use_tls"]:
+            server.starttls()
+        if smtp["username"] and smtp["password"]:
+            server.login(smtp["username"], smtp["password"])
+        server.send_message(msg)
+    logger.info("Recovery email sent for device: %s to %s", device.name, to_addr)
+
+
 def _dispatch_notification(alert: Alert, channel: NotificationChannel) -> None:
     """Send a notification via the given channel (sync)."""
     try:
@@ -244,30 +360,47 @@ def _dispatch_notification(alert: Alert, channel: NotificationChannel) -> None:
         logger.warning("Unknown channel type: %s", channel.channel_type)
 
 
+def _load_smtp_settings() -> dict:
+    """Reload SMTP settings from .env so celery workers pick up changes."""
+    from app.config import Settings
+    fresh = Settings()
+    return {
+        "host": fresh.SMTP_HOST,
+        "port": fresh.SMTP_PORT,
+        "username": fresh.SMTP_USERNAME,
+        "password": fresh.SMTP_PASSWORD,
+        "from_addr": str(fresh.SMTP_FROM),
+        "use_tls": fresh.SMTP_USE_TLS,
+    }
+
+
 def _send_email_notification(alert: Alert, config: dict) -> None:
     """Send email notification."""
     import smtplib
     from email.mime.text import MIMEText
-    from app.config import settings
 
-    to_addr = config.get("to", str(settings.SMTP_FROM))
+    smtp = _load_smtp_settings()
+    to_addr = config.get("to", smtp["from_addr"])
     msg = MIMEText(
         f"Alert: {alert.title}\n\n{alert.message}\n\n"
         f"Severity: {alert.severity.value}\n"
         f"Triggered: {alert.triggered_at}"
     )
     msg["Subject"] = f"[NetMon] {alert.severity.value.upper()}: {alert.title}"
-    msg["From"] = str(settings.SMTP_FROM)
+    msg["From"] = smtp["from_addr"]
     msg["To"] = to_addr
 
-    if settings.SMTP_USERNAME and settings.SMTP_PASSWORD:
-        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
-            server.starttls()
-            server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
-            server.send_message(msg)
-        logger.info("Email sent for alert: %s to %s", alert.title, to_addr)
-    else:
+    if not smtp["host"]:
         logger.warning("SMTP not configured, skipping email for: %s", alert.title)
+        return
+
+    with smtplib.SMTP(smtp["host"], smtp["port"]) as server:
+        if smtp["use_tls"]:
+            server.starttls()
+        if smtp["username"] and smtp["password"]:
+            server.login(smtp["username"], smtp["password"])
+        server.send_message(msg)
+    logger.info("Email sent for alert: %s to %s", alert.title, to_addr)
 
 
 def _send_webhook_notification(alert: Alert, config: dict) -> None:

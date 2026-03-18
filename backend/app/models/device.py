@@ -51,6 +51,7 @@ class Device(Base):
 
     # Ping Statistics
     consecutive_failures: Mapped[int] = mapped_column(Integer, default=0)
+    consecutive_successes: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     total_checks: Mapped[int] = mapped_column(Integer, default=0)
     successful_checks: Mapped[int] = mapped_column(Integer, default=0)
 

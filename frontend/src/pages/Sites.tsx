@@ -8,6 +8,7 @@ import SiteMapPanel from '../components/Sites/SiteMapPanel';
 import RootMapViewer from '../components/Sites/RootMapViewer';
 import ConfirmDialog from '../components/Common/ConfirmDialog';
 import { useRole } from '../hooks/useRole';
+import { useWebSocket } from '../hooks/useWebSocket';
 import api from '../api/client';
 import type { Site, SiteTree } from '../types';
 
@@ -55,6 +56,15 @@ export default function Sites() {
   const reload = useCallback(() => {
     setTreeKey((k) => k + 1);
   }, []);
+
+  // Auto-refresh every 30s + on WebSocket updates
+  useEffect(() => {
+    const interval = setInterval(reload, 30000);
+    return () => clearInterval(interval);
+  }, [reload]);
+
+  const handleWsMessage = useCallback(() => { reload(); }, [reload]);
+  useWebSocket(handleWsMessage);
 
   // Load full site details when selected
   useEffect(() => {
@@ -115,24 +125,24 @@ export default function Sites() {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Sites</h1>
+    <div className="flex flex-col h-[calc(100vh-7rem)]">
+      <div className="flex items-center justify-between mb-1">
+        <h1 className="text-lg font-bold text-gray-900 dark:text-white">Sites</h1>
         {canEdit && (
-          <button onClick={openAdd} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">
-            <Plus className="h-4 w-4" /> Add Site
+          <button onClick={openAdd} className="flex items-center gap-1.5 px-3 py-1 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700">
+            <Plus className="h-3.5 w-3.5" /> Add Site
           </button>
         )}
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-6">
+      <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-0">
         {/* Tree */}
-        <div className="lg:w-[19%] lg:shrink-0">
+        <div className="lg:w-[19%] lg:shrink-0 overflow-y-auto">
           <SiteTreeView key={treeKey} onSelect={setSelectedId} selectedId={selectedId} onTreeLoaded={handleTreeLoaded} />
         </div>
 
         {/* Map panel */}
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 overflow-y-auto">
           {selectedSite ? (
             <SiteMapPanel
               site={selectedSite}

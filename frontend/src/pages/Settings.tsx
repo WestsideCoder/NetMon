@@ -14,6 +14,8 @@ interface MonitoringSettings {
   http_check_interval: number;
   missed_pings_warning: number;
   missed_pings_critical: number;
+  recovery_pings: number;
+  recovery_email_enabled: boolean;
   cpu_warning_percent: number;
   cpu_critical_percent: number;
   memory_warning_percent: number;
@@ -21,6 +23,8 @@ interface MonitoringSettings {
   disk_warning_percent: number;
   disk_critical_percent: number;
   dns_servers: string;
+  email_template_down: string;
+  email_template_up: string;
 }
 
 type SNMPVersion = 'v1' | 'v2c' | 'v3';
@@ -602,6 +606,31 @@ export default function Settings() {
                     </div>
                   </div>
 
+                  <div className="border-t dark:border-gray-700 pt-4 mt-2">
+                    <h3 className="text-sm font-semibold dark:text-white mb-3">Recovery Settings</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className={labelClass}>Pings Before Recovery</label>
+                        <input type="number" min={1} max={10} className={inputClass} value={mon.recovery_pings}
+                          disabled={!isAdmin}
+                          onChange={(e) => setField('recovery_pings', parseInt(e.target.value) || 3)} />
+                        <p className="text-xs text-gray-400 mt-1">Consecutive successful pings before marking a device back online</p>
+                      </div>
+                      <div className="flex items-center gap-3 pt-5">
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input type="checkbox" className="sr-only peer" checked={mon.recovery_email_enabled}
+                            disabled={!isAdmin}
+                            onChange={(e) => setMon({ ...mon, recovery_email_enabled: e.target.checked })} />
+                          <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                        </label>
+                        <div>
+                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Recovery Email</span>
+                          <p className="text-xs text-gray-400">Send email when a device comes back online</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
                   <div>
                     <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">DNS Servers</h4>
                     <input type="text" className={inputClass} value={mon.dns_servers}
@@ -611,10 +640,32 @@ export default function Settings() {
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Comma-separated DNS servers for reverse lookups (device name resolution). Leave empty to use system DNS.</p>
                   </div>
 
+                  <div className="border-t dark:border-gray-700 pt-4 mt-2">
+                    <h3 className="text-sm font-semibold dark:text-white mb-3">Email Templates</h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                      Available placeholders: <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">{'{device}'}</code> <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">{'{ip}'}</code> <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">{'{type}'}</code> <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">{'{site}'}</code> <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">{'{reason}'}</code> <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">{'{severity}'}</code> <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">{'{time}'}</code> <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">{'{recovery_pings}'}</code>
+                    </p>
+                    <div className="space-y-4">
+                      <div>
+                        <label className={labelClass}>Device Down Template</label>
+                        <textarea rows={6} className={inputClass} value={mon.email_template_down}
+                          disabled={!isAdmin}
+                          onChange={(e) => setMon({ ...mon, email_template_down: e.target.value })} />
+                      </div>
+                      <div>
+                        <label className={labelClass}>Device Recovery Template</label>
+                        <textarea rows={6} className={inputClass} value={mon.email_template_up}
+                          disabled={!isAdmin}
+                          onChange={(e) => setMon({ ...mon, email_template_up: e.target.value })} />
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3 text-xs text-gray-600 dark:text-gray-400">
                     <p>Ping every <strong className="dark:text-gray-200">{mon.ping_interval}s</strong>,
                       warning after <strong className="dark:text-gray-200">{mon.missed_pings_warning * mon.ping_interval}s</strong> ({mon.missed_pings_warning} missed),
-                      critical after <strong className="dark:text-gray-200">{mon.missed_pings_critical * mon.ping_interval}s</strong> ({mon.missed_pings_critical} missed).
+                      critical after <strong className="dark:text-gray-200">{mon.missed_pings_critical * mon.ping_interval}s</strong> ({mon.missed_pings_critical} missed),
+                      recovery after <strong className="dark:text-gray-200">{mon.recovery_pings}</strong> consecutive successful pings.
                     </p>
                   </div>
 
