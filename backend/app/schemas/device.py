@@ -40,6 +40,7 @@ class DeviceUpdate(BaseModel):
     os_info: Optional[str] = None
     maintenance_mode: Optional[bool] = None
     maintenance_until: Optional[datetime] = None
+    alert_excluded_metrics: Optional[str] = None
     notes: Optional[str] = None
     map_x: Optional[float] = None
     map_y: Optional[float] = None
@@ -78,6 +79,7 @@ class DeviceResponse(BaseModel):
     os_info: Optional[str] = None
     maintenance_mode: bool
     maintenance_until: Optional[UTCDatetime]
+    alert_excluded_metrics: Optional[str] = None
     notes: Optional[str]
     map_x: Optional[float] = None
     map_y: Optional[float] = None
@@ -112,3 +114,4 @@ class DeviceStats(BaseModel):
     warning: int
     offline: int
     unknown: int
+    maintenance: int = 0

@@ -629,6 +629,15 @@ def _check_server_metrics(db, device: Device) -> None:
             except (ValueError, TypeError):
                 pass
 
+    # Parse per-device alert exclusions
+    import json as _json
+    excluded = set()
+    if device.alert_excluded_metrics:
+        try:
+            excluded = set(_json.loads(device.alert_excluded_metrics))
+        except (ValueError, TypeError):
+            pass
+
     reasons = []
 
     checks = [
@@ -637,6 +646,8 @@ def _check_server_metrics(db, device: Device) -> None:
         ("diskUsedPercent", settings.DISK_WARNING_PERCENT, "Disk"),
     ]
     for metric_name, warn_pct, label in checks:
+        if metric_name in excluded:
+            continue
         val = latest_metrics.get(metric_name)
         if val is None:
             continue
@@ -653,6 +664,21 @@ def _check_server_metrics(db, device: Device) -> None:
             from app.services.alert_service import notify_status_change
             from app.models.alert import AlertSeverity as _Sev
             notify_status_change(db, device, _Sev.WARNING, ", ".join(reasons), metric_name="server_metrics")
+    elif device.status == DeviceStatus.WARNING and device.status_reason:
+        # All triggering metrics are now excluded or below threshold — resolve
+        from app.services.alert_service import auto_resolve_alerts
+        auto_resolve_alerts(db, device.id, "server_metrics")
+        from sqlalchemy import select as sel2
+        from app.models.alert import Alert as _Alert, AlertStatus as _AS
+        remaining = db.execute(
+            sel2(func.count(_Alert.id)).where(
+                _Alert.device_id == device.id,
+                _Alert.status == _AS.ACTIVE,
+            )
+        ).scalar() or 0
+        if remaining == 0:
+            device.status = DeviceStatus.ONLINE
+            device.status_reason = None
 
 
 def _get_oids_for_device(device: Device) -> dict:

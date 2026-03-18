@@ -88,6 +88,9 @@ class Device(Base):
     maintenance_mode: Mapped[bool] = mapped_column(Boolean, default=False)
     maintenance_until: Mapped[Optional[datetime]] = mapped_column(DateTime)
 
+    # Alert exclusions — JSON array of metric names to skip alerting on
+    alert_excluded_metrics: Mapped[Optional[str]] = mapped_column(String(2000), default=None)
+
     # System info (from SNMP sysDescr)
     os_info: Mapped[Optional[str]] = mapped_column(String(200))
 

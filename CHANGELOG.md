@@ -1,5 +1,31 @@
 # Changelog
 
+## v0.9.0.6 (2026-03-18)
+
+### Added
+- **Maintenance mode UI** — blue toggle button on device detail page next to Test Now; blue "Maint" badge in device list table and device detail status area
+- **Maintenance count on dashboard** — new blue Maintenance card alongside Total/Online/Warning/Offline counts
+- **Per-device alert metric exclusion** — toggle individual SNMP metrics (CPU, Memory, Disk, UPS Battery, etc.) on/off for alerting per device; shown as pill buttons in the SNMP Metrics panel
+- **Email subject line editing** — customizable subject templates for down and recovery email notifications in Settings > Monitoring
+- **Maintenance clears alerts** — entering maintenance mode automatically resolves all active/acknowledged alerts, resets status to online, and clears failure counters
+- **Device sort order** — device list now sorts: offline > warning > maintenance > online, then alphabetical
+
+### Fixed
+- **Alert exclusion resolves existing alerts** — toggling a metric off immediately resolves active `server_metrics` alerts for that device and clears warning status
+- **Maintenance devices can't be alerted** — guard in `notify_status_change` and `_update_device_status` prevents alert creation and status changes for devices in maintenance mode
+- **SNMP poll respects exclusions** — `_check_server_metrics` skips excluded metrics and auto-resolves if no remaining threshold violations
+
+### Security
+- **LDAP injection fix** — escape special characters in LDAP filter username substitution
+- **Path traversal fix** — validate file paths stay within UPLOAD_DIR/SSL_STORE_DIR before read/write/delete (sites, SSL certs, map images)
+- **SSRF prevention** — HTTP check task blocks requests to localhost, loopback, link-local, and cloud metadata IPs
+- **Email header injection fix** — sanitize Subject/From/To fields to strip newlines and control characters
+- **Unsafe setattr hardening** — explicit field whitelists on user, device, and alert rule update endpoints
+- **Nginx hardening** — `server_tokens off`, `X-Frame-Options DENY`, `Permissions-Policy` header, HSTS preload, remove `ws:` from CSP (wss only), block API doc routes
+- **Docker non-root** — backend container now runs as `netmon` user (UID 1000)
+- **Monitoring interval validation** — Pydantic Field bounds on all numeric settings (prevent DoS via zero intervals)
+- **Login rate limiter moved to Redis** — works across multiple uvicorn workers, survives restarts
+
 ## v0.9.0.5 (2026-03-18)
 
 ### Added

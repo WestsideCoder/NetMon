@@ -107,12 +107,48 @@ async def update_device(
         "name", "ip_address", "device_type", "site_id", "vlan",
         "snmp_enabled", "snmp_credential_id", "snmp_template_id",
         "http_url", "http_expected_status", "ntp_enabled", "web_check_enabled",
-        "maintenance_mode", "maintenance_until", "notes", "map_x", "map_y",
+        "maintenance_mode", "maintenance_until", "alert_excluded_metrics",
+        "notes", "map_x", "map_y",
     }
     for field, value in updates.items():
         if field in allowed_fields:
             setattr(device, field, value)
     device.updated_at = datetime.utcnow()
+
+    # When alert exclusions change: resolve active alerts for excluded metrics
+    if 'alert_excluded_metrics' in updates and updates['alert_excluded_metrics']:
+        import json as _json
+        from app.models.alert import Alert, AlertStatus as AStatus2
+        try:
+            excluded_names = set(_json.loads(updates['alert_excluded_metrics']))
+        except (ValueError, TypeError):
+            excluded_names = set()
+        if excluded_names:
+            # Also resolve "server_metrics" alerts if any server metric is excluded
+            match_names = set(excluded_names)
+            server_metrics = {"cpuLoadAvg", "memoryUsedPercent", "diskUsedPercent"}
+            if excluded_names & server_metrics:
+                match_names.add("server_metrics")
+            exc_alerts = (await db.execute(
+                select(Alert).where(
+                    Alert.device_id == device_id,
+                    Alert.metric_name.in_(match_names),
+                    Alert.status.in_([AStatus2.ACTIVE, AStatus2.ACKNOWLEDGED]),
+                )
+            )).scalars().all()
+            for alert in exc_alerts:
+                alert.status = AStatus2.RESOLVED
+                alert.resolved_at = datetime.utcnow()
+            # Clear device status if no active alerts remain
+            remaining = (await db.execute(
+                select(func.count(Alert.id)).where(
+                    Alert.device_id == device_id,
+                    Alert.status == AStatus2.ACTIVE,
+                )
+            )).scalar() or 0
+            if remaining == 0 and device.status != DeviceStatus.OFFLINE:
+                device.status = DeviceStatus.ONLINE
+                device.status_reason = None
 
     # When entering maintenance: resolve active alerts and clear status
     if entering_maintenance:
@@ -154,12 +190,18 @@ async def get_device_stats(db: AsyncSession) -> DeviceStats:
     )
     counts = {row[0]: row[1] for row in result.all()}
     total = sum(counts.values())
+    # Count maintenance devices separately
+    maint_result = await db.execute(
+        select(func.count(Device.id)).where(Device.maintenance_mode == True)  # noqa: E712
+    )
+    maintenance = maint_result.scalar() or 0
     return DeviceStats(
         total=total,
         online=counts.get(DeviceStatus.ONLINE, 0),
         warning=counts.get(DeviceStatus.WARNING, 0),
         offline=counts.get(DeviceStatus.OFFLINE, 0),
         unknown=counts.get(DeviceStatus.UNKNOWN, 0),
+        maintenance=maintenance,
     )
 
 

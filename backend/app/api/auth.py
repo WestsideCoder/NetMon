@@ -2,8 +2,7 @@
 """
 Authentication endpoints: login, refresh, logout, profile.
 """
-import time
-from collections import defaultdict
+import logging
 from datetime import datetime
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -14,24 +13,43 @@ from app.config import settings
 from app.database import get_db
 from app.models.user import User, AuthSource
 
-# Simple in-memory rate limiter for login attempts
-_login_attempts: dict[str, list[float]] = defaultdict(list)
+logger = logging.getLogger(__name__)
+
+# Redis-backed rate limiter for login attempts (works across workers)
 _LOGIN_WINDOW = 300  # 5 minutes
 _LOGIN_MAX_ATTEMPTS = 10
 
 
+def _get_redis():
+    """Get a Redis connection for rate limiting."""
+    try:
+        import redis
+        return redis.Redis.from_url(settings.REDIS_URL, decode_responses=True)
+    except Exception:
+        return None
+
+
 def _check_login_rate(key: str) -> None:
     """Raise 429 if too many login attempts from this IP."""
-    now = time.time()
-    attempts = _login_attempts[key]
-    # Prune old entries
-    _login_attempts[key] = [t for t in attempts if now - t < _LOGIN_WINDOW]
-    if len(_login_attempts[key]) >= _LOGIN_MAX_ATTEMPTS:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Too many login attempts. Try again in a few minutes.",
-        )
-    _login_attempts[key].append(now)
+    r = _get_redis()
+    if r is None:
+        return  # fail open if Redis unavailable
+    rate_key = f"login_rate:{key}"
+    try:
+        count = r.get(rate_key)
+        if count and int(count) >= _LOGIN_MAX_ATTEMPTS:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many login attempts. Try again in a few minutes.",
+            )
+        pipe = r.pipeline()
+        pipe.incr(rate_key)
+        pipe.expire(rate_key, _LOGIN_WINDOW)
+        pipe.execute()
+    except HTTPException:
+        raise
+    except Exception:
+        logger.debug("Redis rate limit check failed", exc_info=True)
 
 from app.core.security import (
     verify_password, get_password_hash,

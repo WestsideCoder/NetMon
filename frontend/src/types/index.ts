@@ -60,6 +60,7 @@ export interface Device {
   os_info: string | null;
   maintenance_mode: boolean;
   maintenance_until: string | null;
+  alert_excluded_metrics: string | null;
   notes: string | null;
   map_x: number | null;
   map_y: number | null;
@@ -88,6 +89,7 @@ export interface DeviceStats {
   warning: number;
   offline: number;
   unknown: number;
+  maintenance: number;
 }
 
 export interface Site {

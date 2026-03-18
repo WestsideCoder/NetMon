@@ -33,9 +33,21 @@ def evaluate_thresholds(
         select(AlertRule).where(AlertRule.enabled == True)  # noqa: E712
     ).scalars().all()
 
+    # Parse per-device excluded metrics
+    excluded = set()
+    if device.alert_excluded_metrics:
+        try:
+            excluded = set(json.loads(device.alert_excluded_metrics))
+        except (json.JSONDecodeError, TypeError):
+            pass
+
     new_alerts = []
     for rule in rules:
         if rule.device_type and device.device_type and rule.device_type != device.device_type.value:
+            continue
+        # Skip metrics excluded for this device
+        if rule.metric_name in excluded:
+            _auto_resolve_by_rule(db, device.id, rule.id)
             continue
         value = metrics.get(rule.metric_name)
         if value is None:
@@ -210,6 +222,10 @@ def notify_status_change(
     Called by ping, SNMP, and HTTP tasks when a device degrades to WARNING or OFFLINE.
     Deduplicates by metric_name so repeated failures don't spam notifications.
     """
+    # Never create alerts for devices in maintenance mode
+    if device.maintenance_mode:
+        return
+
     now = datetime.utcnow()
 
     # Check for duplicate active alert with same metric_name

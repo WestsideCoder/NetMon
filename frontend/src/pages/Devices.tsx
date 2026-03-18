@@ -235,7 +235,7 @@ export function DeviceDetailPage() {
           <DeviceDetail device={device} onEdit={() => setEditing(true)} onReload={reload} />
         </>
       )}
-      {device.snmp_enabled && snmpData && <SNMPMetricPanel data={snmpData} />}
+      {device.snmp_enabled && snmpData && <SNMPMetricPanel data={snmpData} deviceId={device.id} excludedMetrics={device.alert_excluded_metrics} onExclusionsChange={reload} />}
       {!editing && <DeviceLocationMap device={device} />}
     </div>
   );

@@ -273,6 +273,10 @@ def ping_all_devices():
 
 def _update_device_status(db, device: Device, ping_result: dict) -> None:
     """Update device status based on ping result."""
+    # Skip devices in maintenance mode (should be filtered upstream, but guard)
+    if device.maintenance_mode:
+        return
+
     now = datetime.utcnow()
     prev_status = device.status
     device.last_check = now

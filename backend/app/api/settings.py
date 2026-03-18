@@ -11,7 +11,7 @@ import smtplib
 from email.mime.text import MIMEText
 from typing import Optional
 from fastapi import APIRouter, Depends, UploadFile, File
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -27,19 +27,19 @@ router = APIRouter()
 
 
 class MonitoringSettings(BaseModel):
-    ping_interval: int
-    snmp_poll_interval: int
-    http_check_interval: int
-    missed_pings_warning: int
-    missed_pings_critical: int
-    recovery_pings: int = 3
+    ping_interval: int = Field(ge=10, le=3600)
+    snmp_poll_interval: int = Field(ge=30, le=3600)
+    http_check_interval: int = Field(ge=10, le=3600)
+    missed_pings_warning: int = Field(ge=1, le=20)
+    missed_pings_critical: int = Field(ge=1, le=20)
+    recovery_pings: int = Field(default=3, ge=1, le=10)
     recovery_email_enabled: bool = True
-    cpu_warning_percent: int
-    cpu_critical_percent: int
-    memory_warning_percent: int
-    memory_critical_percent: int
-    disk_warning_percent: int
-    disk_critical_percent: int
+    cpu_warning_percent: int = Field(ge=1, le=100)
+    cpu_critical_percent: int = Field(ge=1, le=100)
+    memory_warning_percent: int = Field(ge=1, le=100)
+    memory_critical_percent: int = Field(ge=1, le=100)
+    disk_warning_percent: int = Field(ge=1, le=100)
+    disk_critical_percent: int = Field(ge=1, le=100)
     dns_servers: str = ""
     email_subject_down: str = ""
     email_subject_up: str = ""

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { Link } from 'react-router-dom';
-import { Monitor, CheckCircle, AlertTriangle, XCircle } from 'lucide-react';
+import { Monitor, CheckCircle, AlertTriangle, XCircle, Wrench } from 'lucide-react';
 import type { DeviceStats } from '../../types';
 
 export default function StatusCards({ stats }: { stats: DeviceStats | null }) {
@@ -10,9 +10,10 @@ export default function StatusCards({ stats }: { stats: DeviceStats | null }) {
     { label: 'Online', value: stats.online, icon: CheckCircle, color: 'bg-green-500', link: '/devices?status=online' },
     { label: 'Warning', value: stats.warning, icon: AlertTriangle, color: 'bg-yellow-500', link: '/alerts' },
     { label: 'Offline', value: stats.offline, icon: XCircle, color: 'bg-red-500', link: '/alerts' },
+    { label: 'Maintenance', value: stats.maintenance, icon: Wrench, color: 'bg-blue-400', link: '/devices' },
   ];
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
       {cards.map(({ label, value, icon: Icon, color, link }) => (
         <Link
           key={label}
