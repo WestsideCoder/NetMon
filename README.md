@@ -96,10 +96,10 @@
 
 ### Prerequisites
 
-- Docker & Docker Compose
+- Docker & Docker Compose (v2)
 - Git
 - 4GB RAM minimum
-- Ports available: 80, 443 (nginx), 5432 (db), 6379 (redis), 8000 (backend API)
+- Ports available: **80** (required — web UI), 443 (HTTPS optional)
 
 ### Installation
 
@@ -112,20 +112,30 @@ cd NetMon
 2. **Configure environment**
 ```bash
 cp .env.example .env
-# Edit .env with your settings
 ```
+Edit `.env` and set at minimum:
+- `SECRET_KEY` — a long random string (required for production)
+- `POSTGRES_PASSWORD` — database password
 
 3. **Start all services**
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
 4. **Access the application**
-- Frontend: http://localhost (via nginx)
-- API: http://localhost:8000 (dev only)
 
-5. **Log in with default credentials**
-- Username: `admin`, Password: `admin1234`
+Open your browser to **port 80** (not 8000):
+- Local: **http://localhost**
+- Remote: **http://&lt;your-server-ip&gt;**
+
+> **Note:** Port 8000 serves only the raw backend API (JSON). The full web UI is served by nginx on port 80, which reverse-proxies API requests to the backend automatically.
+
+5. **Log in**
+- Username: `admin`
+- A random password is generated on first startup — check the backend logs:
+  ```bash
+  docker compose logs backend | grep "Default admin password"
+  ```
 - You will be prompted to change your password on first login.
 
 ---
@@ -248,7 +258,7 @@ netmon-v2/
 
 ```bash
 # Enter backend container
-docker-compose exec backend bash
+docker compose exec backend bash
 
 # Run tests
 pytest
@@ -271,7 +281,7 @@ mypy app/
 
 ```bash
 # Enter frontend container
-docker-compose exec frontend sh
+docker compose exec frontend sh
 
 # Run tests
 npm test
@@ -396,27 +406,31 @@ npm run lint
 
 ## 🐛 Troubleshooting
 
+### I see JSON instead of the web UI
+You are hitting the backend API directly on port 8000. The web UI is served by nginx on **port 80**. Open `http://localhost` (no port) or `http://<your-server-ip>` instead.
+
 ### Services won't start
 ```bash
 # Check logs
-docker-compose logs backend
-docker-compose logs celery-worker
+docker compose logs backend
+docker compose logs celery-worker
+docker compose logs nginx
 
 # Reset everything
-docker-compose down -v
-docker-compose up -d
+docker compose down -v
+docker compose up -d
 ```
 
 ### Database migration issues
 ```bash
 # Check current version
-docker-compose exec backend alembic current
+docker compose exec backend alembic current
 
 # Downgrade one revision
-docker-compose exec backend alembic downgrade -1
+docker compose exec backend alembic downgrade -1
 
 # Upgrade to latest
-docker-compose exec backend alembic upgrade head
+docker compose exec backend alembic upgrade head
 ```
 
 ### SNMP not working

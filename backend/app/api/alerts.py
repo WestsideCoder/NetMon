@@ -12,6 +12,7 @@ from sqlalchemy.orm import joinedload
 from app.database import get_db
 from app.models.user import User, UserRole
 from app.models.alert import Alert, AlertRule, AlertStatus, NotificationChannel
+from app.models.device import Device
 from app.core.security import get_current_user, require_role
 from app.schemas.alert import (
     AlertResponse, AlertListResponse,
@@ -39,8 +40,14 @@ async def list_alerts(
     db: AsyncSession = Depends(get_db),
     _user: User = Depends(get_current_user),
 ):
-    query = select(Alert).options(joinedload(Alert.device))
-    count_query = select(func.count(Alert.id))
+    query = select(Alert).join(Alert.device).options(joinedload(Alert.device))
+    count_query = select(func.count(Alert.id)).join(Alert.device)
+
+    # Exclude maintenance devices from active/acknowledged views
+    if status_filter in (None, "", "active", "acknowledged"):
+        query = query.where(Device.maintenance_mode == False)
+        count_query = count_query.where(Device.maintenance_mode == False)
+
     if status_filter:
         query = query.where(Alert.status == status_filter)
         count_query = count_query.where(Alert.status == status_filter)
@@ -71,8 +78,12 @@ async def active_alerts(
 ):
     result = await db.execute(
         select(Alert)
+        .join(Alert.device)
         .options(joinedload(Alert.device))
-        .where(Alert.status.in_([AlertStatus.ACTIVE, AlertStatus.ACKNOWLEDGED]))
+        .where(
+            Alert.status.in_([AlertStatus.ACTIVE, AlertStatus.ACKNOWLEDGED]),
+            Device.maintenance_mode == False,
+        )
         .order_by(Alert.triggered_at.desc())
         .limit(100)
     )

@@ -171,6 +171,21 @@ async def create_device(
     return _device_to_response(device)
 
 
+@router.get("/maintenance", response_model=list[DeviceResponse])
+async def list_maintenance_devices(
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
+):
+    """Get all devices currently in maintenance mode."""
+    result = await db.execute(
+        select(Device)
+        .options(joinedload(Device.site))
+        .where(Device.maintenance_mode == True)
+        .order_by(Device.name)
+    )
+    return [_device_to_response(d) for d in result.unique().scalars().all()]
+
+
 @router.get("/{device_id}", response_model=DeviceResponse)
 async def get_device(
     device_id: int,
