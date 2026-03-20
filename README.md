@@ -132,11 +132,12 @@ Open your browser to **port 80** (not 8000):
 
 5. **Log in**
 - Username: `admin`
-- A random password is generated on first startup — check the backend logs:
-  ```bash
-  docker compose logs backend | grep "Default admin password"
-  ```
+- Password: `admin1234`
 - You will be prompted to change your password on first login.
+- You can also confirm the credentials in the backend logs:
+  ```bash
+  docker compose logs backend | grep "DEFAULT ADMIN"
+  ```
 
 ---
 

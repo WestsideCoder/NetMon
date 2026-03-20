@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Pencil, Trash2, FolderPlus, Image, MapPin, ChevronDown, ChevronUp, ImageOff, Plus, Radar, Map, List } from 'lucide-react';
+import { Pencil, Trash2, FolderPlus, Image, MapPin, ChevronDown, ChevronUp, ImageOff, Plus, Radar, Map, List, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import api from '../../api/client';
 import type { Site, Device, SiteChildWithStats } from '../../types';
@@ -12,6 +12,31 @@ import SiteChildGrid from './SiteChildGrid';
 import FloorPlanViewer from './FloorPlanViewer';
 import MapImageUpload from './MapImageUpload';
 import DeviceForm from '../Devices/DeviceForm';
+
+type SortDir = 'asc' | 'desc';
+type SiteSortKey = 'name' | 'location' | 'level' | 'total' | 'online' | 'offline';
+type DeviceSortKey = 'status' | 'name' | 'ip_address' | 'device_type' | 'response_time' | 'uptime_percentage';
+
+function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
+  if (!active) return <ArrowUpDown className="h-3.5 w-3.5 opacity-40" />;
+  return dir === 'asc' ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />;
+}
+
+function SortHeader<K extends string>({ label, sortKey, currentKey, dir, onSort }: {
+  label: string; sortKey: K; currentKey: K | null; dir: SortDir; onSort: (key: K) => void;
+}) {
+  return (
+    <th
+      className="px-4 py-2 font-medium text-gray-600 dark:text-gray-300 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white"
+      onClick={() => onSort(sortKey)}
+    >
+      <span className="inline-flex items-center gap-1">
+        {label}
+        <SortIcon active={currentKey === sortKey} dir={dir} />
+      </span>
+    </th>
+  );
+}
 
 interface Props {
   site: Site;
@@ -53,7 +78,58 @@ export default function SiteMapPanel({ site, onEdit, onDelete, onAddChild, onRel
   };
   const [listDevices, setListDevices] = useState<Device[]>([]);
   const [listLoading, setListLoading] = useState(false);
+  const [siteSortKey, setSiteSortKey] = useState<SiteSortKey | null>(null);
+  const [siteSortDir, setSiteSortDir] = useState<SortDir>('asc');
+  const [deviceSortKey, setDeviceSortKey] = useState<DeviceSortKey | null>(null);
+  const [deviceSortDir, setDeviceSortDir] = useState<SortDir>('asc');
   const { canEdit, isAdmin } = useRole();
+
+  const toggleSiteSort = (key: SiteSortKey) => {
+    if (siteSortKey === key) setSiteSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSiteSortKey(key); setSiteSortDir('asc'); }
+  };
+  const toggleDeviceSort = (key: DeviceSortKey) => {
+    if (deviceSortKey === key) setDeviceSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setDeviceSortKey(key); setDeviceSortDir('asc'); }
+  };
+
+  const sortedChildren = useMemo(() => {
+    if (!siteSortKey) return children;
+    const m = siteSortDir === 'asc' ? 1 : -1;
+    return [...children].sort((a, b) => {
+      let av: string | number, bv: string | number;
+      switch (siteSortKey) {
+        case 'name': av = a.name.toLowerCase(); bv = b.name.toLowerCase(); break;
+        case 'location': av = (a.location || '').toLowerCase(); bv = (b.location || '').toLowerCase(); break;
+        case 'level': av = a.level; bv = b.level; break;
+        case 'total': av = a.device_stats.total; bv = b.device_stats.total; break;
+        case 'online': av = a.device_stats.online; bv = b.device_stats.online; break;
+        case 'offline': av = a.device_stats.offline; bv = b.device_stats.offline; break;
+      }
+      return av < bv ? -m : av > bv ? m : 0;
+    });
+  }, [children, siteSortKey, siteSortDir]);
+
+  const statusOrder: Record<string, number> = { online: 0, warning: 1, offline: 2, unknown: 3 };
+  const sortedDevices = useMemo(() => {
+    if (!deviceSortKey) return listDevices;
+    const m = deviceSortDir === 'asc' ? 1 : -1;
+    return [...listDevices].sort((a, b) => {
+      let av: string | number, bv: string | number;
+      switch (deviceSortKey) {
+        case 'status': av = statusOrder[a.status] ?? 9; bv = statusOrder[b.status] ?? 9; break;
+        case 'name': av = a.name.toLowerCase(); bv = b.name.toLowerCase(); break;
+        case 'ip_address': {
+          const toNum = (ip: string) => ip.split('.').reduce((s, o) => s * 256 + Number(o), 0);
+          av = toNum(a.ip_address); bv = toNum(b.ip_address); break;
+        }
+        case 'device_type': av = (a.device_type || '').toLowerCase(); bv = (b.device_type || '').toLowerCase(); break;
+        case 'response_time': av = a.response_time ?? Infinity; bv = b.response_time ?? Infinity; break;
+        case 'uptime_percentage': av = a.uptime_percentage; bv = b.uptime_percentage; break;
+      }
+      return av < bv ? -m : av > bv ? m : 0;
+    });
+  }, [listDevices, deviceSortKey, deviceSortDir]);
 
   const setNavStack = useCallback((updater: Site[] | ((prev: Site[]) => Site[])) => {
     setNavStackState(prev => {
@@ -294,16 +370,16 @@ export default function SiteMapPanel({ site, onEdit, onDelete, onAddChild, onRel
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50/50 dark:bg-gray-700/50 text-left">
                     <tr>
-                      <th className="px-4 py-2 font-medium text-gray-600 dark:text-gray-300">Name</th>
-                      <th className="px-4 py-2 font-medium text-gray-600 dark:text-gray-300">Location</th>
-                      <th className="px-4 py-2 font-medium text-gray-600 dark:text-gray-300">Level</th>
-                      <th className="px-4 py-2 font-medium text-gray-600 dark:text-gray-300">Devices</th>
-                      <th className="px-4 py-2 font-medium text-gray-600 dark:text-gray-300">Online</th>
-                      <th className="px-4 py-2 font-medium text-gray-600 dark:text-gray-300">Offline</th>
+                      <SortHeader label="Name" sortKey="name" currentKey={siteSortKey} dir={siteSortDir} onSort={toggleSiteSort} />
+                      <SortHeader label="Location" sortKey="location" currentKey={siteSortKey} dir={siteSortDir} onSort={toggleSiteSort} />
+                      <SortHeader label="Level" sortKey="level" currentKey={siteSortKey} dir={siteSortDir} onSort={toggleSiteSort} />
+                      <SortHeader label="Devices" sortKey="total" currentKey={siteSortKey} dir={siteSortDir} onSort={toggleSiteSort} />
+                      <SortHeader label="Online" sortKey="online" currentKey={siteSortKey} dir={siteSortDir} onSort={toggleSiteSort} />
+                      <SortHeader label="Offline" sortKey="offline" currentKey={siteSortKey} dir={siteSortDir} onSort={toggleSiteSort} />
                     </tr>
                   </thead>
                   <tbody className="divide-y dark:divide-gray-700">
-                    {children.map((c) => (
+                    {sortedChildren.map((c) => (
                       <tr key={c.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer" onClick={() => handleDrillDown(c)}>
                         <td className="px-4 py-3">
                           <span className={`hover:underline font-medium flex items-center gap-1.5 ${
@@ -344,16 +420,16 @@ export default function SiteMapPanel({ site, onEdit, onDelete, onAddChild, onRel
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50/50 dark:bg-gray-700/50 text-left">
                     <tr>
-                      <th className="px-4 py-2 font-medium text-gray-600 dark:text-gray-300">Status</th>
-                      <th className="px-4 py-2 font-medium text-gray-600 dark:text-gray-300">Name</th>
-                      <th className="px-4 py-2 font-medium text-gray-600 dark:text-gray-300">IP Address</th>
-                      <th className="px-4 py-2 font-medium text-gray-600 dark:text-gray-300">Type</th>
-                      <th className="px-4 py-2 font-medium text-gray-600 dark:text-gray-300">Response</th>
-                      <th className="px-4 py-2 font-medium text-gray-600 dark:text-gray-300">Uptime</th>
+                      <SortHeader label="Status" sortKey="status" currentKey={deviceSortKey} dir={deviceSortDir} onSort={toggleDeviceSort} />
+                      <SortHeader label="Name" sortKey="name" currentKey={deviceSortKey} dir={deviceSortDir} onSort={toggleDeviceSort} />
+                      <SortHeader label="IP Address" sortKey="ip_address" currentKey={deviceSortKey} dir={deviceSortDir} onSort={toggleDeviceSort} />
+                      <SortHeader label="Type" sortKey="device_type" currentKey={deviceSortKey} dir={deviceSortDir} onSort={toggleDeviceSort} />
+                      <SortHeader label="Response" sortKey="response_time" currentKey={deviceSortKey} dir={deviceSortDir} onSort={toggleDeviceSort} />
+                      <SortHeader label="Uptime" sortKey="uptime_percentage" currentKey={deviceSortKey} dir={deviceSortDir} onSort={toggleDeviceSort} />
                     </tr>
                   </thead>
                   <tbody className="divide-y dark:divide-gray-700">
-                    {listDevices.map((d) => (
+                    {sortedDevices.map((d) => (
                       <tr key={d.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                         <td className="px-4 py-3">
                           <span className={`inline-block w-2.5 h-2.5 rounded-full ${
