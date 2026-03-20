@@ -1,61 +1,74 @@
 #!/bin/bash
-# Quick start script for Network Monitor V2
+# Quick start script for NetMon
 
 set -e
 
-echo "🚀 Network Monitor V2 - Quick Start"
-echo "===================================="
+echo "🚀 NetMon - Quick Start"
+echo "======================="
 echo ""
 
 # Check prerequisites
-command -v docker >/dev/null 2>&1 || { echo "❌ Docker is required but not installed. Aborting." >&2; exit 1; }
-command -v docker-compose >/dev/null 2>&1 || { echo "❌ Docker Compose is required but not installed. Aborting." >&2; exit 1; }
+command -v docker >/dev/null 2>&1 || { echo "❌ Docker is required but not installed."; echo "   Install from: https://docs.docker.com/engine/install/"; exit 1; }
 
-echo "✓ Docker found: $(docker --version)"
-echo "✓ Docker Compose found: $(docker-compose --version)"
+# Check for docker compose v2 (plugin), not docker-compose v1
+if docker compose version >/dev/null 2>&1; then
+    echo "✓ Docker found: $(docker --version)"
+    echo "✓ Docker Compose found: $(docker compose version)"
+else
+    echo "❌ Docker Compose v2 plugin is required but not found."
+    echo "   Install from: https://docs.docker.com/engine/install/"
+    echo ""
+    echo "   Note: The old 'docker-compose' (v1) is not supported."
+    echo "   You need the 'docker compose' plugin (v2)."
+    exit 1
+fi
 echo ""
 
 # Check if .env exists
 if [ ! -f .env ]; then
     echo "📝 Creating .env file from template..."
     cp .env.example .env
-    echo "⚠️  Please edit .env file with your settings before running in production!"
+    # Generate a random SECRET_KEY
+    SECRET=$(openssl rand -base64 48 2>/dev/null || head -c 48 /dev/urandom | base64)
+    sed -i "s|^SECRET_KEY=.*|SECRET_KEY=$SECRET|" .env
+    echo "✓ Generated random SECRET_KEY"
+    echo "⚠️  Review .env and set POSTGRES_PASSWORD before running in production!"
     echo ""
 fi
 
 # Stop any existing containers
 echo "🛑 Stopping existing containers..."
-docker-compose down 2>/dev/null || true
+docker compose down 2>/dev/null || true
 echo ""
 
 # Build and start services
-echo "🏗️  Building containers..."
-docker-compose build --no-cache
+echo "🏗️  Building and starting containers..."
+docker compose up -d --build
 
 echo ""
-echo "🚀 Starting services..."
-docker-compose up -d
-
-echo ""
-echo "⏳ Waiting for services to be healthy..."
+echo "⏳ Waiting for services to start..."
 sleep 10
 
 # Check service health
 echo ""
 echo "📊 Service Status:"
-docker-compose ps
-
+docker compose ps
 echo ""
+
+# Show default credentials
 echo "✅ Setup complete!"
 echo ""
-echo "📍 Access points:"
-echo "   - Backend API: http://localhost:8000"
-echo "   - API Docs: http://localhost:8000/docs"
-echo "   - Frontend: http://localhost:3000 (when built)"
+echo "📍 Access the web UI:"
+echo "   http://localhost (or http://<your-server-ip>)"
+echo ""
+echo "🔑 Default login:"
+echo "   Username: admin"
+echo "   Password: admin1234"
+echo "   (You will be prompted to change this on first login)"
 echo ""
 echo "💡 Useful commands:"
-echo "   - View logs: docker-compose logs -f"
-echo "   - Stop services: docker-compose down"
-echo "   - Restart: docker-compose restart"
+echo "   - View logs:       docker compose logs -f"
+echo "   - Backend logs:    docker compose logs -f backend"
+echo "   - Stop services:   docker compose down"
+echo "   - Restart:         docker compose restart"
 echo ""
-echo "📖 Read DEVELOPMENT.md for next steps!"

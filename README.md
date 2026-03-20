@@ -96,7 +96,9 @@
 
 ### Prerequisites
 
-- Docker & Docker Compose (v2)
+- **Docker Engine** + **Docker Compose v2** (the `docker compose` plugin, **not** the old `docker-compose` v1 package)
+  - Install from the official docs: https://docs.docker.com/engine/install/
+  - After installing, verify: `docker compose version`
 - Git
 - 4GB RAM minimum
 - Ports available: **80** (required — web UI), 443 (HTTPS optional)
@@ -433,6 +435,9 @@ docker compose exec backend alembic downgrade -1
 # Upgrade to latest
 docker compose exec backend alembic upgrade head
 ```
+
+### "docker-compose" command not found
+NetMon requires **Docker Compose v2** (the `docker compose` plugin), not the legacy standalone `docker-compose` (v1). If you see errors with `docker-compose`, use `docker compose` (with a space) instead. Install Docker Engine with the compose plugin from: https://docs.docker.com/engine/install/
 
 ### SNMP not working
 1. Verify credentials in Settings
