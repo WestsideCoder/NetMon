@@ -58,6 +58,8 @@ interface ChannelFormData {
   channel_type: string;
   to: string;
   url: string;
+  user_key: string;
+  api_token: string;
   enabled: boolean;
 }
 
@@ -67,7 +69,7 @@ const emptySNMPForm: SNMPFormData = {
 };
 
 const emptyChannelForm: ChannelFormData = {
-  name: '', channel_type: 'email', to: '', url: '', enabled: true,
+  name: '', channel_type: 'email', to: '', url: '', user_key: '', api_token: '', enabled: true,
 };
 
 interface SmtpSettings {
@@ -357,15 +359,17 @@ export default function Settings() {
 
   const openEditChannel = (ch: NotificationChannel) => {
     setChannelEditId(ch.id);
-    let to = '', url = '';
+    let to = '', url = '', user_key = '', api_token = '';
     try {
       const cfg = JSON.parse(ch.config);
       to = cfg.to || '';
       url = cfg.url || '';
+      user_key = cfg.user_key || '';
+      api_token = cfg.api_token || '';
     } catch { /* empty */ }
     setChannelForm({
       name: ch.name, channel_type: ch.channel_type,
-      to, url, enabled: ch.enabled,
+      to, url, user_key, api_token, enabled: ch.enabled,
     });
     setChannelError('');
     setShowChannelForm(true);
@@ -376,14 +380,23 @@ export default function Settings() {
     if (channelForm.channel_type === 'email' && !channelForm.to.trim()) {
       setChannelError('Email address is required'); return;
     }
-    if (channelForm.channel_type !== 'email' && !channelForm.url.trim()) {
+    if (channelForm.channel_type === 'pushover') {
+      if (!channelForm.user_key.trim()) { setChannelError('User Key is required'); return; }
+      if (!channelForm.api_token.trim()) { setChannelError('API Token is required'); return; }
+    }
+    if (!['email', 'pushover'].includes(channelForm.channel_type) && !channelForm.url.trim()) {
       setChannelError('Webhook URL is required'); return;
     }
     setChannelSaving(true);
     setChannelError('');
-    const config = channelForm.channel_type === 'email'
-      ? JSON.stringify({ to: channelForm.to })
-      : JSON.stringify({ url: channelForm.url });
+    let config: string;
+    if (channelForm.channel_type === 'email') {
+      config = JSON.stringify({ to: channelForm.to });
+    } else if (channelForm.channel_type === 'pushover') {
+      config = JSON.stringify({ user_key: channelForm.user_key, api_token: channelForm.api_token });
+    } else {
+      config = JSON.stringify({ url: channelForm.url });
+    }
     const payload = {
       name: channelForm.name,
       channel_type: channelForm.channel_type,
@@ -898,14 +911,14 @@ export default function Settings() {
                   let detail = '';
                   try {
                     const cfg = JSON.parse(ch.config);
-                    detail = cfg.to || cfg.url || '';
+                    detail = cfg.to || cfg.url || (cfg.user_key ? `User: ${cfg.user_key.slice(0, 8)}...` : '') || '';
                   } catch { /* empty */ }
                   return (
                     <div key={ch.id} className="px-5 py-3 flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium dark:text-white">{ch.name}</p>
                         <p className="text-xs text-gray-500">
-                          {ch.channel_type === 'email' ? 'Email' : ch.channel_type === 'slack' ? 'Slack' : 'Webhook'}
+                          {ch.channel_type === 'email' ? 'Email' : ch.channel_type === 'slack' ? 'Slack' : ch.channel_type === 'pushover' ? 'Pushover' : 'Webhook'}
                           {detail && ` - ${detail}`}
                         </p>
                       </div>
@@ -929,7 +942,7 @@ export default function Settings() {
                   <div className="px-5 py-8 text-center">
                     <Bell className="h-8 w-8 text-gray-300 mx-auto mb-2" />
                     <p className="text-sm text-gray-400">No notification channels configured.</p>
-                    <p className="text-xs text-gray-400 mt-1">Add an email or webhook channel to receive alert notifications.</p>
+                    <p className="text-xs text-gray-400 mt-1">Add an email, webhook, or Pushover channel to receive alert notifications.</p>
                   </div>
                 )}
               </div>
@@ -1307,9 +1320,25 @@ export default function Settings() {
                   <option value="email">Email</option>
                   <option value="webhook">Webhook</option>
                   <option value="slack">Slack</option>
+                  <option value="pushover">Pushover</option>
                 </select>
               </div>
-              {channelForm.channel_type === 'email' ? (
+              {channelForm.channel_type === 'pushover' ? (
+                <>
+                  <div>
+                    <label className={labelClass}>User Key *</label>
+                    <input className={inputClass} value={channelForm.user_key}
+                      onChange={(e) => setChannelForm({ ...channelForm, user_key: e.target.value })}
+                      placeholder="Your Pushover user key" />
+                  </div>
+                  <div>
+                    <label className={labelClass}>API Token *</label>
+                    <input className={inputClass} value={channelForm.api_token}
+                      onChange={(e) => setChannelForm({ ...channelForm, api_token: e.target.value })}
+                      placeholder="Your Pushover application API token" />
+                  </div>
+                </>
+              ) : channelForm.channel_type === 'email' ? (
                 <>
                   <div>
                     <label className={labelClass}>Quick Fill from User</label>

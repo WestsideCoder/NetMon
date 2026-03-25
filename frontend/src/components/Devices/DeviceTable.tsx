@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Pencil, Trash2, Wrench } from 'lucide-react';
+import { Pencil, Trash2 } from 'lucide-react';
 import StatusBadge from '../Common/StatusBadge';
 import ConfirmDialog from '../Common/ConfirmDialog';
 import { useRole } from '../../hooks/useRole';
@@ -102,12 +102,7 @@ export default function DeviceTable({ devices, onEdit, onDelete, selectedIds, on
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-1.5">
                     <StatusBadge status={d.status} />
-                    {d.maintenance_mode && (
-                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
-                        <Wrench className="h-2.5 w-2.5" /> Maint
-                      </span>
-                    )}
-                    {d.status_reason && d.status !== 'online' && !d.maintenance_mode && (
+                    {d.status_reason && d.status !== 'online' && d.status !== 'maintenance' && (
                       <span className="text-xs text-gray-500 dark:text-gray-400">{d.status_reason}</span>
                     )}
                   </div>

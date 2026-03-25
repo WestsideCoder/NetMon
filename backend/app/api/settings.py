@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.device import Device
+from app.models.alert import AlertRule
 from app.models.user import User, UserRole
 from app.core.security import get_current_user, require_role
 from app.config import settings
@@ -76,6 +77,7 @@ async def get_monitoring_settings(
 @router.put("/monitoring", response_model=MonitoringSettings)
 async def update_monitoring_settings(
     data: MonitoringSettings,
+    db: AsyncSession = Depends(get_db),
     _user: User = Depends(require_role(UserRole.ADMIN)),
 ):
     # Update in-memory settings
@@ -97,6 +99,26 @@ async def update_monitoring_settings(
     settings.EMAIL_SUBJECT_UP = data.email_subject_up
     settings.EMAIL_TEMPLATE_DOWN = data.email_template_down
     settings.EMAIL_TEMPLATE_UP = data.email_template_up
+
+    # Sync alert rule thresholds to match settings
+    _threshold_map = {
+        ("cpuLoadAvg", "warning"): data.cpu_warning_percent,
+        ("cpuLoadAvg", "critical"): data.cpu_critical_percent,
+        ("memoryUsedPercent", "warning"): data.memory_warning_percent,
+        ("memoryUsedPercent", "critical"): data.memory_critical_percent,
+        ("diskUsedPercent", "warning"): data.disk_warning_percent,
+        ("diskUsedPercent", "critical"): data.disk_critical_percent,
+    }
+    result = await db.execute(
+        select(AlertRule).where(
+            AlertRule.metric_name.in_(["cpuLoadAvg", "memoryUsedPercent", "diskUsedPercent"])
+        )
+    )
+    for rule in result.scalars().all():
+        new_val = _threshold_map.get((rule.metric_name, rule.severity.value))
+        if new_val is not None and rule.threshold != new_val:
+            rule.threshold = new_val
+    await db.commit()
 
     # Persist to .env so they survive restarts
     env_path = "/app/.env"

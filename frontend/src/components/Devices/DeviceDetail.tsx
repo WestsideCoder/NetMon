@@ -96,12 +96,7 @@ export default function DeviceDetail({ device, onEdit, onReload }: Props) {
               <Pencil className="h-4 w-4" /> Edit
             </button>
           )}
-          <StatusBadge status={device.status} />
-          {maintenanceMode && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
-              <Wrench className="h-3 w-3" /> Maintenance
-            </span>
-          )}
+          <StatusBadge status={maintenanceMode ? 'maintenance' : device.status} />
           {device.status_reason && device.status !== 'online' && !maintenanceMode && (
             <span className="text-xs text-gray-500 dark:text-gray-400">{device.status_reason}</span>
           )}

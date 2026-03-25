@@ -6,6 +6,7 @@ const STATUS_COLORS: Record<string, string> = {
   online: 'bg-green-500',
   warning: 'bg-yellow-500',
   offline: 'bg-red-500',
+  maintenance: 'bg-blue-500',
   unknown: 'bg-gray-400',
 };
 
@@ -13,6 +14,7 @@ const STATUS_RING: Record<string, string> = {
   online: 'ring-green-300',
   warning: 'ring-yellow-300',
   offline: 'ring-red-300',
+  maintenance: 'ring-blue-300',
   unknown: 'ring-gray-300',
 };
 

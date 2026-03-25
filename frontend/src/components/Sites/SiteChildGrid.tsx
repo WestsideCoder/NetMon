@@ -68,7 +68,7 @@ export default function SiteChildGrid({ children, onSelect, loading }: Props) {
         return (
           <button
             key={child.id}
-            onClick={() => onSelect(child)}
+            onDoubleClick={() => onSelect(child)}
             className="bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-md transition-shadow p-4 text-left group"
           >
             <div className="flex items-start gap-3 mb-3">

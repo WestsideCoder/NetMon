@@ -470,7 +470,8 @@ export default function FloorPlanViewer({ site, children: childSites, onUploadIm
                   <div className={`w-2 h-2 rounded-full shrink-0 ${
                     device.status === 'online' ? 'bg-green-500' :
                     device.status === 'warning' ? 'bg-yellow-500' :
-                    device.status === 'offline' ? 'bg-red-500' : 'bg-gray-400'
+                    device.status === 'offline' ? 'bg-red-500' :
+                    device.status === 'maintenance' ? 'bg-blue-500' : 'bg-gray-400'
                   }`} />
                   <Link to={`/devices/${device.id}`} className="truncate text-primary-600 hover:underline dark:text-primary-400">{device.name}</Link>
                 </div>

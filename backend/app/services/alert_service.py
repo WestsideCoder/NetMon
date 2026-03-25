@@ -307,6 +307,8 @@ def _dispatch_recovery(device: Device, channel: NotificationChannel) -> None:
 
     if channel.channel_type == "email":
         _send_recovery_email(device, config)
+    elif channel.channel_type == "pushover":
+        _send_pushover_recovery(device, config)
     elif channel.channel_type in ("webhook", "slack"):
         import httpx
         url = config.get("url")
@@ -381,6 +383,8 @@ def _dispatch_notification(alert: Alert, channel: NotificationChannel) -> None:
     elif channel.channel_type in ("webhook", "slack"):
         _send_webhook_notification(alert, config)
         alert.webhook_sent = True
+    elif channel.channel_type == "pushover":
+        _send_pushover_notification(alert, config)
     else:
         logger.warning("Unknown channel type: %s", channel.channel_type)
 
@@ -459,3 +463,55 @@ def _send_webhook_notification(alert: Alert, config: dict) -> None:
     with httpx.Client(timeout=10) as client:
         client.post(url, json=payload)
     logger.info("Webhook sent for alert: %s", alert.title)
+
+
+_PUSHOVER_PRIORITY = {
+    "info": -1,
+    "warning": 0,
+    "critical": 1,
+}
+
+
+def _send_pushover_notification(alert: Alert, config: dict) -> None:
+    """Send alert notification via Pushover."""
+    import httpx
+    user_key = config.get("user_key")
+    api_token = config.get("api_token")
+    if not user_key or not api_token:
+        logger.warning("Pushover not configured (missing user_key or api_token)")
+        return
+    priority = _PUSHOVER_PRIORITY.get(alert.severity.value, 0)
+    payload = {
+        "token": api_token,
+        "user": user_key,
+        "title": f"[{alert.severity.value.upper()}] {alert.title}",
+        "message": alert.message,
+        "priority": priority,
+    }
+    if priority >= 1:
+        payload["retry"] = 300
+        payload["expire"] = 3600
+    with httpx.Client(timeout=10) as client:
+        resp = client.post("https://api.pushover.net/1/messages.json", data=payload)
+        resp.raise_for_status()
+    logger.info("Pushover sent for alert: %s", alert.title)
+
+
+def _send_pushover_recovery(device: Device, config: dict) -> None:
+    """Send recovery notification via Pushover."""
+    import httpx
+    user_key = config.get("user_key")
+    api_token = config.get("api_token")
+    if not user_key or not api_token:
+        return
+    payload = {
+        "token": api_token,
+        "user": user_key,
+        "title": f"[RECOVERED] {device.name}",
+        "message": f"Device {device.name} ({device.ip_address}) is back online.",
+        "priority": -1,
+    }
+    with httpx.Client(timeout=10) as client:
+        resp = client.post("https://api.pushover.net/1/messages.json", data=payload)
+        resp.raise_for_status()
+    logger.info("Pushover recovery sent for device: %s", device.name)

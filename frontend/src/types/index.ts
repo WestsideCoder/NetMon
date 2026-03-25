@@ -2,7 +2,7 @@
 
 export type UserRole = 'admin' | 'operator' | 'viewer';
 export type AuthSource = 'local' | 'ldap';
-export type DeviceStatus = 'online' | 'warning' | 'offline' | 'unknown';
+export type DeviceStatus = 'online' | 'warning' | 'offline' | 'maintenance' | 'unknown';
 export type DeviceType = 'ups' | 'switch' | 'router' | 'server' | 'camera' | 'access_point' | 'iot' | 'other';
 export type AlertSeverity = 'info' | 'warning' | 'critical';
 export type AlertStatus = 'active' | 'acknowledged' | 'resolved';

@@ -25,6 +25,7 @@ class DeviceStatus(str, enum.Enum):
     ONLINE = "online"
     WARNING = "warning"
     OFFLINE = "offline"
+    MAINTENANCE = "maintenance"
     UNKNOWN = "unknown"
 
 

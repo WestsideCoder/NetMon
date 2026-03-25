@@ -380,7 +380,7 @@ export default function SiteMapPanel({ site, onEdit, onDelete, onAddChild, onRel
                   </thead>
                   <tbody className="divide-y dark:divide-gray-700">
                     {sortedChildren.map((c) => (
-                      <tr key={c.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer" onClick={() => handleDrillDown(c)}>
+                      <tr key={c.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer" onDoubleClick={() => handleDrillDown(c)}>
                         <td className="px-4 py-3">
                           <span className={`hover:underline font-medium flex items-center gap-1.5 ${
                             c.device_stats.offline > 0 ? 'text-red-600 dark:text-red-400' : c.device_stats.warning > 0 ? 'text-yellow-600 dark:text-yellow-400' : 'text-blue-600 dark:text-blue-400'
@@ -435,7 +435,8 @@ export default function SiteMapPanel({ site, onEdit, onDelete, onAddChild, onRel
                           <span className={`inline-block w-2.5 h-2.5 rounded-full ${
                             d.status === 'online' ? 'bg-green-500' :
                             d.status === 'warning' ? 'bg-yellow-500' :
-                            d.status === 'offline' ? 'bg-red-500' : 'bg-gray-400'
+                            d.status === 'offline' ? 'bg-red-500' :
+                            d.status === 'maintenance' ? 'bg-blue-500' : 'bg-gray-400'
                           }`} title={d.status} />
                         </td>
                         <td className="px-4 py-3">

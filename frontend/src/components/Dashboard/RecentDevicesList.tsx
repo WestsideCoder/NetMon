@@ -14,7 +14,7 @@ export default function RecentDevicesList({ devices }: { devices: Device[] }) {
         ) : devices.map((d) => (
           <div key={d.id} className="px-5 py-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className={`w-2.5 h-2.5 rounded-full ${d.status === 'online' ? 'bg-green-500' : d.status === 'warning' ? 'bg-yellow-500' : d.status === 'offline' ? 'bg-red-500' : 'bg-gray-400'}`} />
+              <div className={`w-2.5 h-2.5 rounded-full ${d.status === 'online' ? 'bg-green-500' : d.status === 'warning' ? 'bg-yellow-500' : d.status === 'offline' ? 'bg-red-500' : d.status === 'maintenance' ? 'bg-blue-500' : 'bg-gray-400'}`} />
               <div>
                 <Link to={`/devices/${d.id}`} className="text-sm font-medium text-primary-600 hover:underline dark:text-primary-400">{d.name}</Link>
                 <p className="text-xs text-gray-500 font-mono">{d.ip_address}</p>

@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.9.0.7 (2026-03-25)
+
+### Changed
+- **Double-click to drill down** — site card grid and list view sub-site rows now require double-click to drill into child sites (prevents accidental navigation); map marker icons unchanged (single click for tooltip)
+
 ## v0.9.0.6 (2026-03-18)
 
 ### Added

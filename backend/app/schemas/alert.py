@@ -78,7 +78,7 @@ class AlertRuleResponse(BaseModel):
 
 class NotificationChannelCreate(BaseModel):
     name: str
-    channel_type: str  # email, webhook, slack
+    channel_type: str  # email, webhook, slack, pushover
     config: str  # JSON string
     enabled: bool = True
 

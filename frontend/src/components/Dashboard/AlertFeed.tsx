@@ -16,6 +16,8 @@ export default function AlertFeed({ alerts }: { alerts: Alert[] }) {
           <div className="flex-1 min-w-0">
             <Link to={`/devices/${alert.device_id}`} className="text-sm font-medium text-primary-600 hover:underline dark:text-primary-400 truncate block">{alert.title}</Link>
             <p className="text-xs text-gray-500 dark:text-gray-400">
+              {alert.device_name && <span className="font-medium text-gray-700 dark:text-gray-300">{alert.device_name}</span>}
+              {alert.device_name && ' · '}
               {formatRelative(alert.triggered_at)}
             </p>
           </div>

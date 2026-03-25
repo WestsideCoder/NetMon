@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Monitor, MapPin, Bell, Search, Settings, Shield, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { LayoutDashboard, Monitor, MapPin, Bell, Search, Settings, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import netmonLogo from '../../assets/netmon-logo.jpg';
+import westsidecoderLogo from '../../assets/westsidecoder-logo.jpg';
 import { useSidebarStore } from '../../store/sidebarStore';
 import api from '../../api/client';
 
@@ -37,13 +39,15 @@ export default function Sidebar() {
       }`}
     >
       {/* Logo */}
-      <div className={`flex items-center border-b border-gray-700 ${collapsed ? 'justify-center px-2 py-5' : 'gap-2 px-6 py-5'}`}>
-        <Shield className="h-7 w-7 text-primary-400 shrink-0" />
+      <div className={`flex items-center border-b border-gray-700 ${collapsed ? 'justify-center px-2 py-3' : 'gap-3 px-4 py-3'}`}>
+        <img src={netmonLogo} alt="NetMon" className={`rounded-lg shrink-0 ${collapsed ? 'h-10 w-10' : 'h-10 w-10'}`} />
         {!collapsed && (
-          <>
-            <span className="text-xl font-bold">NetMon</span>
-            <span className="text-xs text-yellow-400 ml-1">Beta</span>
-          </>
+          <div className="flex flex-col">
+            <div className="flex items-center gap-1">
+              <span className="text-xl font-bold">NetMon</span>
+              <span className="text-xs text-yellow-400">Beta</span>
+            </div>
+          </div>
         )}
       </div>
 
@@ -71,6 +75,18 @@ export default function Sidebar() {
           </NavLink>
         ))}
       </nav>
+
+      {/* WestsideCoder branding */}
+      <div className={`border-t border-gray-700 ${collapsed ? 'px-2 py-2' : 'px-4 py-2'}`}>
+        {collapsed ? (
+          <img src={westsidecoderLogo} alt="WestsideCoder" className="h-8 w-8 rounded mx-auto" title="WestsideCoder" />
+        ) : (
+          <div className="flex items-center gap-2 px-2">
+            <img src={westsidecoderLogo} alt="WestsideCoder" className="h-7 w-7 rounded shrink-0" />
+            <span className="text-xs text-gray-400">WestsideCoder</span>
+          </div>
+        )}
+      </div>
 
       {/* Version & update indicator */}
       {versionInfo && (

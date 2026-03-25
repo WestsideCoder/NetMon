@@ -13,14 +13,14 @@ class Settings(BaseSettings):
 
     # Application
     APP_NAME: str = "NetMon (Beta)"
-    VERSION: str = "0.9.0.6"
+    VERSION: str = "0.9.0.7"
     ENVIRONMENT: str = "development"
     DEBUG: bool = False
 
     # Security
     SECRET_KEY: str = "dev-secret-key-change-in-production"
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 480
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
     # Database

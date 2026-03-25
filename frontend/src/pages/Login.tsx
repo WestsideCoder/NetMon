@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Shield } from 'lucide-react';
+import netmonLogo from '../assets/netmon-logo.jpg';
+import westsidecoderLogo from '../assets/westsidecoder-logo.jpg';
 import { useAuth } from '../hooks/useAuth';
 
 export default function Login() {
@@ -26,7 +27,7 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center bg-gray-900">
       <div className="w-full max-w-md p-8 bg-gray-800 rounded-xl shadow-2xl">
         <div className="flex flex-col items-center mb-8">
-          <Shield className="h-12 w-12 text-primary-400 mb-3" />
+          <img src={netmonLogo} alt="NetMon" className="h-20 w-20 rounded-xl mb-3" />
           <h1 className="text-2xl font-bold text-white">NetMon <span className="text-yellow-400">(Beta)</span> <span className="text-lg">v0.9</span></h1>
           <p className="text-gray-400 text-sm">Network Monitoring System</p>
         </div>
@@ -48,6 +49,10 @@ export default function Login() {
           </button>
         </form>
         <p className="mt-6 text-center text-xs text-gray-500">Default: admin / admin</p>
+        <div className="mt-4 flex items-center justify-center gap-2">
+          <img src={westsidecoderLogo} alt="WestsideCoder" className="h-6 w-6 rounded" />
+          <span className="text-xs text-gray-500">WestsideCoder</span>
+        </div>
       </div>
     </div>
   );

@@ -83,6 +83,7 @@ class DeviceStatsBase(BaseModel):
     online: int = 0
     warning: int = 0
     offline: int = 0
+    maintenance: int = 0
     unknown: int = 0
 
 

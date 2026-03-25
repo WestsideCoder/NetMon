@@ -192,6 +192,7 @@ async def root_children_with_stats(
             online=status_counts.get("online", 0),
             warning=status_counts.get("warning", 0),
             offline=status_counts.get("offline", 0),
+            maintenance=status_counts.get("maintenance", 0),
             unknown=status_counts.get("unknown", 0),
         )
 
@@ -374,6 +375,7 @@ async def children_with_stats(
             online=status_counts.get("online", 0),
             warning=status_counts.get("warning", 0),
             offline=status_counts.get("offline", 0),
+            maintenance=status_counts.get("maintenance", 0),
             unknown=status_counts.get("unknown", 0),
         )
 
