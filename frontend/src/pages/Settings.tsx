@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { useState, useEffect } from 'react';
-import { Activity, Radio, Bell, Users, Mail, Shield, ChevronRight, Server, Info } from 'lucide-react';
+import { Activity, Radio, Bell, Users, Mail, Shield, ChevronRight, Server, Info, Cloud, Key } from 'lucide-react';
 import { useRole } from '../hooks/useRole';
 import api from '../api/client';
 import type { User, SNMPCredential } from '../types';
@@ -91,12 +91,38 @@ interface DhcpSettings {
   dhcp_sync_interval: number;
 }
 
-type Section = 'monitoring' | 'snmp' | 'notifications' | 'email' | 'users' | 'ssl' | 'dhcp' | 'about';
+interface MistSettings {
+  mist_enabled: boolean;
+  mist_api_token: string;
+  mist_org_id: string;
+  mist_base_url: string;
+  mist_sync_interval: number;
+  mist_import_sites: boolean;
+  mist_sync_status: boolean;
+}
+
+interface LdapSettings {
+  ldap_enabled: boolean;
+  ldap_server: string;
+  ldap_port: number;
+  ldap_use_ssl: boolean;
+  ldap_base_dn: string;
+  ldap_bind_dn: string;
+  ldap_bind_password: string;
+  ldap_user_filter: string;
+  ldap_group_attr: string;
+  ldap_admin_group: string;
+  ldap_operator_group: string;
+}
+
+type Section = 'monitoring' | 'snmp' | 'notifications' | 'email' | 'users' | 'ssl' | 'dhcp' | 'mist' | 'ldap' | 'about';
 
 const sections: { key: Section; label: string; icon: typeof Activity }[] = [
   { key: 'monitoring', label: 'Monitoring', icon: Activity },
   { key: 'snmp', label: 'SNMP', icon: Radio },
   { key: 'dhcp', label: 'DHCP Sync', icon: Server },
+  { key: 'mist', label: 'Mist Cloud', icon: Cloud },
+  { key: 'ldap', label: 'Active Directory', icon: Key },
   { key: 'notifications', label: 'Notifications', icon: Bell },
   { key: 'email', label: 'Email Server', icon: Mail },
   { key: 'users', label: 'Users', icon: Users },
@@ -138,6 +164,8 @@ export default function Settings() {
   const [showUserForm, setShowUserForm] = useState(false);
   const [userEditTarget, setUserEditTarget] = useState<User | undefined>(undefined);
   const [userDeleteTarget, setUserDeleteTarget] = useState<User | null>(null);
+  const [userPurgeTarget, setUserPurgeTarget] = useState<User | null>(null);
+  const [userActionError, setUserActionError] = useState('');
 
   // DHCP state
   const [dhcp, setDhcp] = useState<DhcpSettings | null>(null);
@@ -147,6 +175,22 @@ export default function Settings() {
   const [dhcpSyncMsg, setDhcpSyncMsg] = useState('');
   const [csvUploading, setCsvUploading] = useState(false);
   const [csvMsg, setCsvMsg] = useState('');
+
+  // Mist Cloud state
+  const [mist, setMist] = useState<MistSettings | null>(null);
+  const [mistSaving, setMistSaving] = useState(false);
+  const [mistMsg, setMistMsg] = useState('');
+  const [mistTesting, setMistTesting] = useState(false);
+  const [mistTestResult, setMistTestResult] = useState<{ success: boolean; org_name?: string; error?: string } | null>(null);
+  const [mistSyncing, setMistSyncing] = useState(false);
+  const [mistSyncMsg, setMistSyncMsg] = useState('');
+
+  // LDAP / Active Directory state
+  const [ldap, setLdap] = useState<LdapSettings | null>(null);
+  const [ldapSaving, setLdapSaving] = useState(false);
+  const [ldapMsg, setLdapMsg] = useState('');
+  const [ldapTesting, setLdapTesting] = useState(false);
+  const [ldapTestResult, setLdapTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
   // Version/About state
   const [versionInfo, setVersionInfo] = useState<{
@@ -175,6 +219,10 @@ export default function Settings() {
     api.get('/api/users/').then((r) => setUsers(r.data)).catch(() => {});
   };
 
+  const loadLdap = () => {
+    api.get('/api/settings/ldap').then((r) => setLdap(r.data)).catch(() => {});
+  };
+
   const loadSmtp = () => {
     api.get('/api/settings/email').then((r) => setSmtp(r.data)).catch(() => {});
   };
@@ -186,6 +234,8 @@ export default function Settings() {
     loadChannels();
     loadSmtp();
     api.get('/api/settings/dhcp').then((r) => setDhcp(r.data)).catch(() => {});
+    api.get('/api/settings/mist').then((r) => setMist(r.data)).catch(() => {});
+    loadLdap();
     api.get('/api/settings/version').then((r) => setVersionInfo(r.data)).catch(() => {});
   }, []);
 
@@ -255,6 +305,79 @@ export default function Settings() {
       setDhcpSyncMsg('Failed to trigger sync');
     } finally {
       setDhcpSyncing(false);
+    }
+  };
+
+  // Mist save
+  const saveMist = async () => {
+    if (!mist) return;
+    setMistSaving(true);
+    setMistMsg('');
+    try {
+      const res = await api.put('/api/settings/mist', mist);
+      setMist(res.data);
+      setMistMsg('Settings saved successfully');
+      setTimeout(() => setMistMsg(''), 3000);
+    } catch {
+      setMistMsg('Failed to save settings');
+    } finally {
+      setMistSaving(false);
+    }
+  };
+
+  const testMist = async () => {
+    setMistTesting(true);
+    setMistTestResult(null);
+    try {
+      const res = await api.post('/api/settings/mist/test');
+      setMistTestResult(res.data);
+    } catch {
+      setMistTestResult({ success: false, error: 'Failed to test connection' });
+    } finally {
+      setMistTesting(false);
+    }
+  };
+
+  const triggerMistSync = async () => {
+    setMistSyncing(true);
+    setMistSyncMsg('');
+    try {
+      const res = await api.post('/api/settings/mist/sync');
+      setMistSyncMsg(res.data.message);
+    } catch {
+      setMistSyncMsg('Failed to trigger sync');
+    } finally {
+      setMistSyncing(false);
+    }
+  };
+
+  // LDAP save
+  const saveLdap = async () => {
+    if (!ldap) return;
+    setLdapSaving(true);
+    setLdapMsg('');
+    try {
+      const res = await api.put('/api/settings/ldap', ldap);
+      setLdap(res.data);
+      setLdapMsg('Settings saved successfully');
+      setTimeout(() => setLdapMsg(''), 3000);
+    } catch {
+      setLdapMsg('Failed to save settings');
+    } finally {
+      setLdapSaving(false);
+    }
+  };
+
+  const testLdap = async () => {
+    setLdapTesting(true);
+    setLdapTestResult(null);
+    try {
+      const res = await api.post('/api/settings/ldap/test');
+      setLdapTestResult(res.data);
+    } catch {
+      setLdapTestResult({ success: false, message: 'Failed to test connection' });
+    } finally {
+      setLdapTesting(false);
     }
   };
 
@@ -450,11 +573,28 @@ export default function Settings() {
   const handleDeleteUser = async () => {
     if (!userDeleteTarget) return;
     try {
-      await api.delete(`/api/users/${userDeleteTarget.id}`);
+      await api.post(`/api/users/${userDeleteTarget.id}/deactivate`);
       setUserDeleteTarget(null);
+      setUserActionError('');
       loadUsers();
-    } catch {
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setUserActionError(msg || 'Failed to deactivate user');
       setUserDeleteTarget(null);
+    }
+  };
+
+  const handlePurgeUser = async () => {
+    if (!userPurgeTarget) return;
+    try {
+      await api.delete(`/api/users/${userPurgeTarget.id}`);
+      setUserPurgeTarget(null);
+      setUserActionError('');
+      loadUsers();
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setUserActionError(msg || 'Failed to delete user');
+      setUserPurgeTarget(null);
     }
   };
 
@@ -838,6 +978,282 @@ export default function Settings() {
             </div>
           )}
 
+          {/* ── Mist Cloud ── */}
+          {activeSection === 'mist' && (
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
+              <div className="px-5 py-4 border-b dark:border-gray-700">
+                <h2 className="text-lg font-semibold dark:text-white">Juniper Mist Cloud</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  Sync access points and switches from Juniper Mist. Imports device names, status, model info, and LLDP topology.
+                </p>
+              </div>
+              {mist && (
+                <div className="p-5 space-y-4">
+                  <div className="flex items-center gap-3">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={mist.mist_enabled}
+                        disabled={!isAdmin}
+                        onChange={(e) => setMist({ ...mist, mist_enabled: e.target.checked })}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Enable Mist Sync</span>
+                    </label>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">API Token</label>
+                      <input type="password" className={inputClass} value={mist.mist_api_token}
+                        disabled={!isAdmin}
+                        placeholder={mist.mist_api_token === '****' ? '(unchanged)' : 'Enter Mist API token'}
+                        onChange={(e) => setMist({ ...mist, mist_api_token: e.target.value })} />
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Generate at Mist dashboard → Organization → API Tokens</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Organization ID</label>
+                      <input type="text" className={inputClass} value={mist.mist_org_id}
+                        disabled={!isAdmin}
+                        placeholder="e.g. a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                        onChange={(e) => setMist({ ...mist, mist_org_id: e.target.value })} />
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Found in Mist URL: manage.mist.com/admin/?org_id=...</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">API Base URL</label>
+                      <input type="text" className={inputClass} value={mist.mist_base_url}
+                        disabled={!isAdmin}
+                        onChange={(e) => setMist({ ...mist, mist_base_url: e.target.value })} />
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Default: https://api.mist.com/api/v1 (use api.eu.mist.com for EU cloud)</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Sync Interval (seconds)</label>
+                      <input type="number" className={inputClass} value={mist.mist_sync_interval}
+                        disabled={!isAdmin} min={60}
+                        onChange={(e) => setMist({ ...mist, mist_sync_interval: parseInt(e.target.value) || 300 })} />
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">How often to sync devices from Mist (min 60s). Default: 300s (5 min).</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-6">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={mist.mist_import_sites}
+                        disabled={!isAdmin}
+                        onChange={(e) => setMist({ ...mist, mist_import_sites: e.target.checked })}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Auto-create sites from Mist</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={mist.mist_sync_status}
+                        disabled={!isAdmin}
+                        onChange={(e) => setMist({ ...mist, mist_sync_status: e.target.checked })}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Sync device status (online/offline)</span>
+                    </label>
+                  </div>
+
+                  <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3 text-xs text-gray-600 dark:text-gray-400 space-y-1">
+                    <p><strong>What gets synced:</strong></p>
+                    <ul className="list-disc list-inside space-y-0.5 ml-1">
+                      <li>APs and switches — name, IP, MAC, model, serial, firmware</li>
+                      <li>LLDP topology — upstream switch name and port for each AP</li>
+                      <li>Wireless client count per AP</li>
+                      <li>Online/offline status (if enabled above)</li>
+                      <li>Mist sites auto-mapped to NetMon sites (if enabled above)</li>
+                    </ul>
+                  </div>
+
+                  {isAdmin && (
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <button onClick={saveMist} disabled={mistSaving}
+                        className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                        {mistSaving ? 'Saving...' : 'Save Settings'}
+                      </button>
+                      <button onClick={testMist} disabled={mistTesting || !mist.mist_org_id}
+                        className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50">
+                        {mistTesting ? 'Testing...' : 'Test Connection'}
+                      </button>
+                      <button onClick={triggerMistSync} disabled={mistSyncing || !mist.mist_enabled}
+                        className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50">
+                        {mistSyncing ? 'Syncing...' : 'Sync Now'}
+                      </button>
+                    </div>
+                  )}
+
+                  {mistMsg && (
+                    <p className={`text-sm ${mistMsg.includes('success') ? 'text-green-600' : 'text-red-600'}`}>{mistMsg}</p>
+                  )}
+
+                  {mistTestResult && (
+                    <div className={`p-3 rounded-lg text-sm ${mistTestResult.success ? 'bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-300' : 'bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-300'}`}>
+                      {mistTestResult.success ? (
+                        <p>Connected to Mist org: <strong>{mistTestResult.org_name}</strong></p>
+                      ) : (
+                        <p>{mistTestResult.error || 'Connection failed'}</p>
+                      )}
+                    </div>
+                  )}
+
+                  {mistSyncMsg && (
+                    <p className={`text-sm ${mistSyncMsg.includes('failed') || mistSyncMsg.includes('Failed') ? 'text-red-600' : 'text-green-600'}`}>{mistSyncMsg}</p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── LDAP / Active Directory ── */}
+          {activeSection === 'ldap' && (
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
+              <div className="px-5 py-4 border-b dark:border-gray-700">
+                <h2 className="text-lg font-semibold dark:text-white">Active Directory / LDAP</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  Authenticate users against Active Directory or an LDAP server. Map AD groups to NetMon roles.
+                </p>
+              </div>
+              {ldap && (
+                <div className="p-5 space-y-4">
+                  <div className="flex items-center gap-3">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={ldap.ldap_enabled}
+                        disabled={!isAdmin}
+                        onChange={(e) => setLdap({ ...ldap, ldap_enabled: e.target.checked })}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Enable LDAP Authentication</span>
+                    </label>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">AD Server</label>
+                      <input type="text" className={inputClass} value={ldap.ldap_server}
+                        disabled={!isAdmin}
+                        placeholder="e.g. dc01.example.com or 10.0.0.1"
+                        onChange={(e) => setLdap({ ...ldap, ldap_server: e.target.value })} />
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Hostname or IP of the Active Directory / LDAP server.</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Port</label>
+                      <input type="number" className={inputClass} value={ldap.ldap_port}
+                        disabled={!isAdmin} min={1} max={65535}
+                        onChange={(e) => setLdap({ ...ldap, ldap_port: parseInt(e.target.value) || 389 })} />
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Default: 389 (LDAP) or 636 (LDAPS).</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={ldap.ldap_use_ssl}
+                        disabled={!isAdmin}
+                        onChange={(e) => setLdap({ ...ldap, ldap_use_ssl: e.target.checked })}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Use SSL (LDAPS)</span>
+                    </label>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Enable for LDAPS on port 636. Recommended for production.</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Base DN</label>
+                      <input type="text" className={inputClass} value={ldap.ldap_base_dn}
+                        disabled={!isAdmin}
+                        placeholder="e.g. DC=example,DC=com"
+                        onChange={(e) => setLdap({ ...ldap, ldap_base_dn: e.target.value })} />
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">The base distinguished name for user searches.</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Bind DN</label>
+                      <input type="text" className={inputClass} value={ldap.ldap_bind_dn}
+                        disabled={!isAdmin}
+                        placeholder="e.g. CN=svc-netmon,OU=Service Accounts,DC=example,DC=com"
+                        onChange={(e) => setLdap({ ...ldap, ldap_bind_dn: e.target.value })} />
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Service account DN used to bind and search the directory.</p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Bind Password</label>
+                    <input type="password" className={inputClass} value={ldap.ldap_bind_password}
+                      disabled={!isAdmin}
+                      placeholder={ldap.ldap_bind_password === '****' ? '(unchanged)' : 'Enter bind password'}
+                      onChange={(e) => setLdap({ ...ldap, ldap_bind_password: e.target.value })} />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">User Filter</label>
+                      <input type="text" className={inputClass} value={ldap.ldap_user_filter}
+                        disabled={!isAdmin}
+                        placeholder="e.g. (sAMAccountName={username})"
+                        onChange={(e) => setLdap({ ...ldap, ldap_user_filter: e.target.value })} />
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">LDAP filter to find users. Use {'{username}'} as placeholder.</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Group Attribute</label>
+                      <input type="text" className={inputClass} value={ldap.ldap_group_attr}
+                        disabled={!isAdmin}
+                        placeholder="e.g. memberOf"
+                        onChange={(e) => setLdap({ ...ldap, ldap_group_attr: e.target.value })} />
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">User attribute that contains group membership.</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Admin Group DN</label>
+                      <input type="text" className={inputClass} value={ldap.ldap_admin_group}
+                        disabled={!isAdmin}
+                        placeholder="e.g. CN=NetMon-Admins,OU=Groups,DC=example,DC=com"
+                        onChange={(e) => setLdap({ ...ldap, ldap_admin_group: e.target.value })} />
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Members of this group get the admin role.</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Operator Group DN</label>
+                      <input type="text" className={inputClass} value={ldap.ldap_operator_group}
+                        disabled={!isAdmin}
+                        placeholder="e.g. CN=NetMon-Operators,OU=Groups,DC=example,DC=com"
+                        onChange={(e) => setLdap({ ...ldap, ldap_operator_group: e.target.value })} />
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Members of this group get the operator role. Others get viewer.</p>
+                    </div>
+                  </div>
+
+                  <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3 text-xs text-gray-600 dark:text-gray-400 space-y-1">
+                    <p><strong>How it works:</strong></p>
+                    <ul className="list-disc list-inside space-y-0.5 ml-1">
+                      <li>Users authenticate with their AD credentials instead of local passwords</li>
+                      <li>AD group membership determines the NetMon role (admin, operator, viewer)</li>
+                      <li>Local admin accounts still work as a fallback if LDAP is unavailable</li>
+                      <li>User accounts are auto-created on first successful LDAP login</li>
+                    </ul>
+                  </div>
+
+                  {isAdmin && (
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <button onClick={saveLdap} disabled={ldapSaving}
+                        className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                        {ldapSaving ? 'Saving...' : 'Save Settings'}
+                      </button>
+                      <button onClick={testLdap} disabled={ldapTesting || !ldap.ldap_server}
+                        className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50">
+                        {ldapTesting ? 'Testing...' : 'Test Connection'}
+                      </button>
+                    </div>
+                  )}
+
+                  {ldapMsg && (
+                    <p className={`text-sm ${ldapMsg.includes('success') ? 'text-green-600' : 'text-red-600'}`}>{ldapMsg}</p>
+                  )}
+
+                  {ldapTestResult && (
+                    <div className={`p-3 rounded-lg text-sm ${ldapTestResult.success ? 'bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-300' : 'bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-300'}`}>
+                      <p>{ldapTestResult.message}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* ── SNMP ── */}
           {activeSection === 'snmp' && (
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
@@ -1087,8 +1503,12 @@ export default function Settings() {
                             <div className="flex items-center gap-2">
                               <button onClick={() => openEditUser(u)}
                                 className="text-xs px-2 py-1 text-blue-600 hover:bg-blue-50 dark:hover:bg-gray-700 rounded">Edit</button>
-                              <button onClick={() => setUserDeleteTarget(u)}
-                                className="text-xs px-2 py-1 text-red-600 hover:bg-red-50 dark:hover:bg-gray-700 rounded">Deactivate</button>
+                              {u.is_active && (
+                                <button onClick={() => setUserDeleteTarget(u)}
+                                  className="text-xs px-2 py-1 text-amber-600 hover:bg-amber-50 dark:hover:bg-gray-700 rounded">Deactivate</button>
+                              )}
+                              <button onClick={() => setUserPurgeTarget(u)}
+                                className="text-xs px-2 py-1 text-red-600 hover:bg-red-50 dark:hover:bg-gray-700 rounded">Delete</button>
                             </div>
                           )}
                         </td>
@@ -1476,6 +1896,22 @@ export default function Settings() {
         onConfirm={handleDeleteUser}
         onCancel={() => setUserDeleteTarget(null)}
       />
+
+      {/* User Delete Confirm */}
+      <ConfirmDialog
+        open={!!userPurgeTarget}
+        title="Delete User"
+        message={`Permanently delete "${userPurgeTarget?.username}"? This cannot be undone.`}
+        onConfirm={handlePurgeUser}
+        onCancel={() => setUserPurgeTarget(null)}
+      />
+
+      {userActionError && (
+        <div className="fixed bottom-4 right-4 z-50 p-3 text-sm text-red-700 bg-red-50 dark:bg-red-900/30 dark:text-red-300 rounded-lg shadow-lg border border-red-200 dark:border-red-800">
+          {userActionError}
+          <button onClick={() => setUserActionError('')} className="ml-3 underline">Dismiss</button>
+        </div>
+      )}
     </div>
   );
 }

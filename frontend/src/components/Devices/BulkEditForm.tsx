@@ -165,15 +165,17 @@ export default function BulkEditForm({ count, ids, sites, onSuccess, onCancel }:
                     </div>
                   )}
                   {key === 'maintenance_mode' && (
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={form.maintenance_mode}
-                        onChange={(e) => setForm({ ...form, maintenance_mode: e.target.checked })}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      />
-                      <span className="text-sm dark:text-gray-300">Enable Maintenance Mode</span>
-                    </label>
+                    <div>
+                      <label className={labelClass}>Action</label>
+                      <select
+                        className={inputClass}
+                        value={form.maintenance_mode ? 'add' : 'remove'}
+                        onChange={(e) => setForm({ ...form, maintenance_mode: e.target.value === 'add' })}
+                      >
+                        <option value="add">Add to maintenance</option>
+                        <option value="remove">Remove from maintenance</option>
+                      </select>
+                    </div>
                   )}
                 </div>
               )}

@@ -81,7 +81,7 @@ def evaluate_thresholds(
         else:
             # Condition no longer true — auto-resolve any active alerts for this rule+device
             _auto_resolve_by_rule(db, device.id, rule.id)
-    if new_alerts:
+    if new_alerts and not device.maintenance_mode:
         # Set device status based on worst new alert severity
         worst = max(new_alerts, key=lambda a: (0 if a.severity == AlertSeverity.INFO else 1 if a.severity == AlertSeverity.WARNING else 2))
         if worst.severity == AlertSeverity.CRITICAL:
@@ -125,7 +125,7 @@ def acknowledge_alert(db: Session, alert_id: int, user_id: int) -> Optional[Aler
     ).scalar() or 0
     if remaining == 0:
         device = db.get(Device, alert.device_id)
-        if device:
+        if device and not device.maintenance_mode:
             device.status = DeviceStatus.ONLINE
             device.status_reason = None
             db.flush()
@@ -187,7 +187,7 @@ def _maybe_clear_device_status(db: Session, device_id: int) -> None:
     ).scalar() or 0
     if remaining == 0:
         device = db.get(Device, device_id)
-        if device and device.status != DeviceStatus.OFFLINE:
+        if device and not device.maintenance_mode and device.status != DeviceStatus.OFFLINE:
             device.status = DeviceStatus.ONLINE
             device.status_reason = None
             db.flush()
@@ -224,6 +224,10 @@ def notify_status_change(
     """
     # Never create alerts for devices in maintenance mode
     if device.maintenance_mode:
+        return
+
+    # Only OFFLINE (CRITICAL) status changes trigger alerts; WARNING is informational only
+    if severity != AlertSeverity.CRITICAL:
         return
 
     now = datetime.utcnow()

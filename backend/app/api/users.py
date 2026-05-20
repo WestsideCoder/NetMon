@@ -7,9 +7,11 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from sqlalchemy import func
+
 from app.database import get_db
 from app.models.user import User, UserRole
-from app.core.security import get_password_hash, require_role
+from app.core.security import get_current_user, get_password_hash, require_role
 from app.schemas.auth import UserCreate, UserUpdate, UserResponse
 
 router = APIRouter()
@@ -72,26 +74,58 @@ async def update_user(
     if not user:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
     allowed_fields = {"email", "full_name", "role", "is_active"}
-    for field, value in data.model_dump(exclude_unset=True).items():
-        if field in allowed_fields:
-            setattr(user, field, value)
+    updates = {f: v for f, v in data.model_dump(exclude_unset=True).items() if f in allowed_fields}
+    if "email" in updates and updates["email"] != user.email:
+        dup = await db.execute(
+            select(User).where(User.email == updates["email"], User.id != user_id)
+        )
+        if dup.scalar_one_or_none():
+            raise HTTPException(status.HTTP_409_CONFLICT, "Email already in use")
+    for field, value in updates.items():
+        setattr(user, field, value)
     await db.flush()
     await db.refresh(user)
     return UserResponse.model_validate(user)
 
 
-@router.delete("/{user_id}")
+@router.post("/{user_id}/deactivate")
 async def deactivate_user(
     user_id: int,
     db: AsyncSession = Depends(get_db),
+    current: User = Depends(get_current_user),
     _admin: User = Depends(require_role(UserRole.ADMIN)),
 ):
     user = await db.get(User, user_id)
     if not user:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
+    if user.id == current.id:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Cannot deactivate your own account")
     user.is_active = False
     await db.flush()
     return {"detail": "User deactivated"}
+
+
+@router.delete("/{user_id}")
+async def delete_user(
+    user_id: int,
+    db: AsyncSession = Depends(get_db),
+    current: User = Depends(get_current_user),
+    _admin: User = Depends(require_role(UserRole.ADMIN)),
+):
+    user = await db.get(User, user_id)
+    if not user:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
+    if user.id == current.id:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Cannot delete your own account")
+    if user.role == UserRole.ADMIN:
+        admin_count = (await db.execute(
+            select(func.count(User.id)).where(User.role == UserRole.ADMIN, User.is_active == True)  # noqa: E712
+        )).scalar() or 0
+        if admin_count <= 1:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Cannot delete the last active admin")
+    await db.delete(user)
+    await db.flush()
+    return {"detail": "User deleted"}
 
 
 @router.post("/{user_id}/api-key")

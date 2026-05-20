@@ -121,14 +121,35 @@ async def bulk_update_devices(
     updates = data.updates.model_dump(exclude_unset=True)
     if not updates:
         return {"detail": "No updates provided", "updated_ids": []}
+    from app.models.device import DeviceStatus
+    from app.models.alert import Alert, AlertStatus
     updated = []
     for device_id in data.ids:
         result = await db.execute(select(Device).where(Device.id == device_id))
         device = result.scalar_one_or_none()
         if not device:
             continue
+        entering_maintenance = updates.get('maintenance_mode') is True and not device.maintenance_mode
+        leaving_maintenance = updates.get('maintenance_mode') is False and device.maintenance_mode
         for field, value in updates.items():
             setattr(device, field, value)
+        if entering_maintenance:
+            active_alerts = (await db.execute(
+                select(Alert).where(
+                    Alert.device_id == device_id,
+                    Alert.status.in_([AlertStatus.ACTIVE, AlertStatus.ACKNOWLEDGED]),
+                )
+            )).scalars().all()
+            for alert in active_alerts:
+                alert.status = AlertStatus.RESOLVED
+                alert.resolved_at = datetime.utcnow()
+            device.status = DeviceStatus.MAINTENANCE
+            device.status_reason = None
+            device.consecutive_failures = 0
+            device.consecutive_successes = 0
+        elif leaving_maintenance:
+            device.status = DeviceStatus.ONLINE
+            device.status_reason = None
         updated.append(device_id)
     await db.flush()
     return {"detail": f"Updated {len(updated)} devices", "updated_ids": updated}

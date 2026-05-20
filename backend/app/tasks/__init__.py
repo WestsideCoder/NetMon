@@ -20,34 +20,49 @@ celery_app.conf.update(
     task_track_started=True,
     worker_prefetch_multiplier=1,
     task_acks_late=True,
+    # Drop stale scheduled tasks so the queue can't snowball if workers fall behind
+    task_default_rate_limit=None,
+    result_expires=3600,
     beat_schedule={
         "ping-all-devices": {
             "task": "app.tasks.ping.ping_all_devices",
             "schedule": float(settings.PING_INTERVAL),
+            "options": {"expires": float(settings.PING_INTERVAL) - 5},
         },
         "snmp-poll-all-devices": {
             "task": "app.tasks.snmp_poll.snmp_poll_all_devices",
             "schedule": float(settings.SNMP_POLL_INTERVAL),
+            "options": {"expires": float(settings.SNMP_POLL_INTERVAL) - 10},
         },
         "http-check-all-devices": {
             "task": "app.tasks.http_check.check_http_endpoints",
             "schedule": float(settings.HTTP_CHECK_INTERVAL),
+            "options": {"expires": float(settings.HTTP_CHECK_INTERVAL) - 10},
         },
         "process-alerts": {
             "task": "app.tasks.alerts.process_alerts",
             "schedule": 60.0,
+            "options": {"expires": 55},
         },
         "check-escalations": {
             "task": "app.tasks.alerts.check_escalations",
             "schedule": 300.0,
+            "options": {"expires": 290},
         },
         "ntp-poll-all-devices": {
             "task": "app.tasks.ntp_poll.ntp_poll_all_devices",
             "schedule": float(settings.NTP_POLL_INTERVAL),
+            "options": {"expires": float(settings.NTP_POLL_INTERVAL) - 10},
         },
         "dhcp-sync-names": {
             "task": "app.tasks.dhcp_sync.sync_dhcp_names",
             "schedule": float(settings.DHCP_SYNC_INTERVAL),
+            "options": {"expires": float(settings.DHCP_SYNC_INTERVAL) - 10},
+        },
+        "mist-sync-devices": {
+            "task": "app.tasks.mist_sync.sync_mist_devices",
+            "schedule": float(settings.MIST_SYNC_INTERVAL),
+            "options": {"expires": float(settings.MIST_SYNC_INTERVAL) - 10},
         },
     },
 )
@@ -56,4 +71,4 @@ celery_app.conf.update(
 celery_app.autodiscover_tasks(["app.tasks"])
 
 # Explicitly import task modules so the worker registers them
-from app.tasks import ping, snmp_poll, http_check, alerts, ntp_poll, dhcp_sync  # noqa: F401, E402
+from app.tasks import ping, snmp_poll, http_check, alerts, ntp_poll, dhcp_sync, mist_sync  # noqa: F401, E402

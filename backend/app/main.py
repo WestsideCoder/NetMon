@@ -185,6 +185,34 @@ async def lifespan(app: FastAPI):
     except Exception:
         logger.warning("Could not seed default alert rules", exc_info=True)
 
+    # Reconcile device status: any device with maintenance_mode=True must show MAINTENANCE
+    try:
+        from sqlalchemy import update
+        from app.models.device import Device, DeviceStatus
+        sync_db = SyncSessionLocal()
+        try:
+            res = sync_db.execute(
+                update(Device)
+                .where(Device.maintenance_mode == True, Device.status != DeviceStatus.MAINTENANCE)  # noqa: E712
+                .values(status=DeviceStatus.MAINTENANCE, status_reason=None)
+            )
+            if res.rowcount:
+                sync_db.commit()
+                logger.info("Reconciled %d devices to MAINTENANCE status", res.rowcount)
+            # Reverse: any device with maintenance_mode=False stuck at MAINTENANCE → ONLINE
+            res2 = sync_db.execute(
+                update(Device)
+                .where(Device.maintenance_mode == False, Device.status == DeviceStatus.MAINTENANCE)  # noqa: E712
+                .values(status=DeviceStatus.ONLINE, status_reason=None)
+            )
+            if res2.rowcount:
+                sync_db.commit()
+                logger.info("Reconciled %d stuck-MAINTENANCE devices to ONLINE", res2.rowcount)
+        finally:
+            sync_db.close()
+    except Exception:
+        logger.warning("Could not reconcile maintenance device status", exc_info=True)
+
     # Create default admin user if none exists
     try:
         from sqlalchemy import select, func
